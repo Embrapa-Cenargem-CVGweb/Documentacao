@@ -1,0 +1,2014 @@
+openapi: 3.0.3
+
+info:
+  title: CVGWeb — API de Gestão de Casas de Vegetação
+  description: |
+    API REST do **Sistema de Gestão de Casas de Vegetação** da Embrapa Cenargen.
+
+    ## Autenticação
+    Todas as rotas autenticadas (🔒) exigem um token **Bearer** no header `Authorization`.
+    O token é obtido via `POST /login` (Laravel Sanctum).
+
+    ## Rate Limiting
+    | Limiter | Rotas | Limite |
+    |---------|-------|--------|
+    | `login` | `POST /login` | 5/min por IP + 5/min por identificador |
+    | `acesso` | Rotas de convite/senha | 5/min por IP + 3/min por e-mail |
+    | `assistente` | `POST /assistente` | Configurável via env |
+    | `api` (global) | Rotas autenticadas | 60/min por usuário |
+  version: 2.0.0
+  contact:
+    name: Embrapa Cenargen — Equipe CVGWeb
+  license:
+    name: Proprietário
+    url: https://www.embrapa.br
+
+servers:
+  - url: http://localhost:8000/api
+    description: Desenvolvimento local (Docker)
+
+tags:
+  - name: Autenticação
+    description: Login, logout e dados do usuário autenticado
+  - name: Acesso
+    description: Convite de usuário e recuperação de senha
+  - name: Funcionários
+    description: CRUD de funcionários do sistema
+  - name: Projetos
+    description: CRUD de projetos de pesquisa
+  - name: Equipe
+    description: Gerenciamento de equipe dos projetos
+  - name: Casas de Vegetação
+    description: CRUD de casas de vegetação e espaços
+  - name: Reservas
+    description: CRUD de reservas de espaço com validação de capacidade
+  - name: Assistente
+    description: Chat com LLM (Groq) para apoio ao usuário
+  - name: Tabelas de Apoio
+    description: Cargos, status de projeto e catálogo de permissões
+  - name: Auditoria
+    description: Trilha de auditoria de ações no sistema
+  - name: Painel
+    description: Dados consolidados para dashboard administrativo
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum Token
+      description: Token retornado no `POST /login`
+
+  schemas:
+    Funcionario:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nome:
+          type: string
+          example: "João Silva"
+        nick:
+          type: string
+          example: "joao.silva"
+        email:
+          type: string
+          format: email
+          example: "joao@embrapa.br"
+        matricula:
+          type: string
+          nullable: true
+          example: "12345"
+        cargo_id:
+          type: integer
+          nullable: true
+        obs:
+          type: string
+          nullable: true
+        ativo:
+          type: boolean
+          example: true
+        super_usuario:
+          type: boolean
+          example: false
+        permissoes:
+          type: string
+          nullable: true
+          description: JSON com tokens de permissão global
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Projeto:
+      type: object
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+          example: "PRJ-001"
+        titulo:
+          type: string
+          example: "Genômica de Trigo"
+        descricao:
+          type: string
+          nullable: true
+        status_projeto_id:
+          type: integer
+        funcionario_id:
+          type: integer
+          description: Pesquisador responsável
+        data_inicio:
+          type: string
+          format: date
+          nullable: true
+        data_fim:
+          type: string
+          format: date
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CasaVegetacao:
+      type: object
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+          example: "CV-01"
+        descricao:
+          type: string
+          example: "Casa de Vegetação Bloco A"
+        tipo:
+          type: string
+          example: "Casa de vegetação"
+        localizacao:
+          type: string
+          nullable: true
+        area_m2:
+          type: integer
+          nullable: true
+        capacidade:
+          type: integer
+          nullable: true
+          description: Número de bancadas (informativo)
+        unidade_capacidade:
+          type: string
+          enum: [VASO, BANCADA]
+          nullable: true
+        capacidade_total:
+          type: integer
+          nullable: true
+          description: Capacidade reservável
+        vasos_3cm:
+          type: integer
+          nullable: true
+        vasos_5cm:
+          type: integer
+          nullable: true
+        vasos_10cm:
+          type: integer
+          nullable: true
+        obs:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ATIVA, MANUTENCAO, INATIVA]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Reserva:
+      type: object
+      properties:
+        id:
+          type: integer
+        casa_vegetacao_id:
+          type: integer
+        funcionario_id:
+          type: integer
+        projeto_id:
+          type: integer
+          nullable: true
+        quantidade:
+          type: integer
+          minimum: 1
+        data_inicio:
+          type: string
+          format: date
+        data_fim:
+          type: string
+          format: date
+        finalidade:
+          type: string
+        obs:
+          type: string
+          nullable: true
+        situacao:
+          type: string
+          enum: [PENDENTE, APROVADA, CANCELADA]
+        aprovado_por:
+          type: integer
+          nullable: true
+        aprovado_em:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Cargo:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+          example: "Pesquisador"
+
+    StatusProjeto:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+          example: "Em Andamento"
+        encerrado:
+          type: boolean
+
+    Auditoria:
+      type: object
+      properties:
+        id:
+          type: integer
+        funcionario_id:
+          type: integer
+        entidade:
+          type: string
+          example: "Reserva"
+        entidade_id:
+          type: integer
+        acao:
+          type: string
+          example: "CRIOU"
+        dados_anteriores:
+          type: object
+          nullable: true
+        dados_novos:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ErroValidacao:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Os dados fornecidos são inválidos."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email: ["O campo email é obrigatório."]
+
+    MensagemSucesso:
+      type: object
+      properties:
+        message:
+          type: string
+
+  responses:
+    Unauthenticated:
+      description: Não autenticado — token ausente ou inválido
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Unauthenticated."
+    Forbidden:
+      description: Sem permissão para esta ação
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "This action is unauthorized."
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Registro não encontrado."
+    ValidationError:
+      description: Erro de validação
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErroValidacao'
+    RateLimited:
+      description: Rate limit excedido
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Segundos até a próxima tentativa permitida
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Too Many Attempts."
+
+paths:
+  # ═══════════════════════════════════════════════════════
+  #  AUTENTICAÇÃO
+  # ═══════════════════════════════════════════════════════
+
+  /login:
+    post:
+      tags: [Autenticação]
+      summary: Autenticar usuário
+      description: |
+        Autentica com e-mail/nick + senha e retorna token Sanctum.
+        **Rate limit:** 5 req/min por IP + 5/min por identificador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, senha]
+              properties:
+                login:
+                  type: string
+                  description: E-mail ou nick do usuário
+                  example: "joao.silva"
+                senha:
+                  type: string
+                  format: password
+                  example: "MinhaSenh@123"
+      responses:
+        '200':
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: "1|abc123..."
+                  funcionario:
+                    $ref: '#/components/schemas/Funcionario'
+        '401':
+          description: Credenciais inválidas ou conta inativa
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /me:
+    get:
+      tags: [Autenticação]
+      summary: Dados do usuário autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dados do usuário com relacionamentos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Funcionario'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /me/contexto:
+    get:
+      tags: [Autenticação]
+      summary: Contexto pós-login
+      description: Retorna projetos, casas de vegetação e permissões por projeto do usuário autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Contexto completo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projetos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Projeto'
+                  casas_vegetacao:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CasaVegetacao'
+                  permissoes:
+                    type: object
+                    description: Mapa de projeto_id → array de tokens de permissão
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /logout:
+    post:
+      tags: [Autenticação]
+      summary: Revogar token atual
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout realizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensagemSucesso'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  # ═══════════════════════════════════════════════════════
+  #  ACESSO (CONVITE E RECUPERAÇÃO DE SENHA)
+  # ═══════════════════════════════════════════════════════
+
+  /esqueci-senha:
+    post:
+      tags: [Acesso]
+      summary: Solicitar recuperação de senha
+      description: |
+        Envia e-mail com link de recuperação. Sempre retorna a mesma resposta
+        (prevenção de enumeração de e-mails).
+        **Rate limit:** 5 req/min por IP + 3/min por e-mail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "joao@embrapa.br"
+      responses:
+        '200':
+          description: Resposta fixa (independente de existência do e-mail)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Se o e-mail estiver cadastrado, enviaremos o link."
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /definir-senha/{token}:
+    get:
+      tags: [Acesso]
+      summary: Validar token de convite/recuperação
+      description: "**Rate limit:** `throttle:acesso`"
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 64
+            maxLength: 64
+          description: Token de 64 caracteres recebido por e-mail
+      responses:
+        '200':
+          description: Token válido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  funcionario:
+                    type: object
+                    properties:
+                      nome:
+                        type: string
+                      nick:
+                        type: string
+                      email:
+                        type: string
+        '404':
+          description: Token inválido, expirado ou já utilizado
+
+  /definir-senha:
+    post:
+      tags: [Acesso]
+      summary: Definir senha via token
+      description: |
+        Define a senha do usuário. Invalida todos os tokens e sessões anteriores.
+        **Rate limit:** `throttle:acesso`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, senha]
+              properties:
+                token:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                senha:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        '200':
+          description: Senha definida com sucesso
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /acesso/email:
+    get:
+      tags: [Acesso]
+      summary: Status do serviço de e-mail
+      description: Verifica se o Resend está configurado e funcional.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status do serviço
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configurado:
+                    type: boolean
+
+  # ═══════════════════════════════════════════════════════
+  #  FUNCIONÁRIOS
+  # ═══════════════════════════════════════════════════════
+
+  /funcionarios:
+    get:
+      tags: [Funcionários]
+      summary: Listar funcionários
+      description: "Requer perfil `FUNCIONARIO-C` ou superior."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: busca
+          in: query
+          schema:
+            type: string
+          description: Filtra por nome ou nick (LIKE com escape de wildcards)
+        - name: ativo
+          in: query
+          schema:
+            type: boolean
+          description: "Filtra por situação (`true` = ativos)"
+        - name: projeto_id
+          in: query
+          schema:
+            type: integer
+          description: Filtra membros de um projeto
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista paginada de funcionários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Funcionario'
+                  current_page:
+                    type: integer
+                  last_page:
+                    type: integer
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Funcionários]
+      summary: Cadastrar funcionário
+      description: |
+        Requer perfil `FUNCIONARIO-I` ou `funcionario.criar` no projeto.
+        Envia e-mail de convite automaticamente.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nome, nick, email]
+              properties:
+                nome:
+                  type: string
+                  maxLength: 150
+                  example: "Maria Souza"
+                nick:
+                  type: string
+                  maxLength: 30
+                  example: "maria.souza"
+                email:
+                  type: string
+                  format: email
+                  maxLength: 150
+                matricula:
+                  type: string
+                  maxLength: 20
+                cargo_id:
+                  type: integer
+                obs:
+                  type: string
+                projeto_id:
+                  type: integer
+                  description: Obrigatório para quem cadastra via permissão de projeto
+                super_usuario:
+                  type: boolean
+                  description: Só o SU pode definir
+                permissoes:
+                  type: array
+                  items:
+                    type: string
+                  description: Tokens de permissão global (só admin)
+      responses:
+        '201':
+          description: Funcionário criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Funcionario'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /funcionarios/{id}:
+    get:
+      tags: [Funcionários]
+      summary: Obter funcionário por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Funcionário com cargo e projetos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Funcionario'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Funcionários]
+      summary: Atualizar funcionário
+      description: |
+        Requer perfil `FUNCIONARIO-A` ou `funcionario.editar` no projeto.
+        - `ativo`: só admin pode alterar
+        - `senha`: só o próprio usuário ou admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nome:
+                  type: string
+                  maxLength: 150
+                nick:
+                  type: string
+                  maxLength: 30
+                email:
+                  type: string
+                  format: email
+                matricula:
+                  type: string
+                cargo_id:
+                  type: integer
+                obs:
+                  type: string
+                senha:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        '200':
+          description: Funcionário atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Funcionario'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Funcionários]
+      summary: Desativar funcionário
+      description: Requer perfil admin. Soft delete — desativa e revoga tokens.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Funcionário desativado
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /funcionarios/{id}/situacao:
+    patch:
+      tags: [Funcionários]
+      summary: Ativar/desativar funcionário
+      description: Requer perfil admin. Desativar revoga todos os tokens.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ativo]
+              properties:
+                ativo:
+                  type: boolean
+      responses:
+        '200':
+          description: Situação alterada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /funcionarios/{id}/convite:
+    post:
+      tags: [Acesso]
+      summary: Reenviar convite
+      description: |
+        Reenvia e-mail de convite para funcionário sem senha definida.
+        Requer permissão de administração.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Convite reenviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  link:
+                    type: string
+                    description: Aparece como fallback quando o e-mail falha
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ═══════════════════════════════════════════════════════
+  #  PROJETOS
+  # ═══════════════════════════════════════════════════════
+
+  /projetos:
+    get:
+      tags: [Projetos]
+      summary: Listar projetos
+      description: Admin vê todos; demais veem apenas os seus.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: busca
+          in: query
+          schema:
+            type: string
+          description: Filtra por código ou título
+        - name: status_projeto_id
+          in: query
+          schema:
+            type: integer
+          description: Filtra por status
+      responses:
+        '200':
+          description: Lista de projetos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Projeto'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+    post:
+      tags: [Projetos]
+      summary: Criar projeto
+      description: Requer perfil admin.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codigo, titulo, status_projeto_id, funcionario_id]
+              properties:
+                codigo:
+                  type: string
+                  maxLength: 40
+                  example: "PRJ-002"
+                titulo:
+                  type: string
+                  maxLength: 200
+                  example: "Melhoramento de Soja"
+                descricao:
+                  type: string
+                status_projeto_id:
+                  type: integer
+                funcionario_id:
+                  type: integer
+                  description: Pesquisador responsável
+                data_inicio:
+                  type: string
+                  format: date
+                data_fim:
+                  type: string
+                  format: date
+                  description: Deve ser ≥ data_inicio
+                colaboradores:
+                  type: array
+                  items:
+                    type: integer
+                  description: IDs de funcionários para a equipe
+      responses:
+        '201':
+          description: Projeto criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projeto'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /projetos/{id}:
+    get:
+      tags: [Projetos]
+      summary: Obter projeto por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Projeto com responsável, status e equipe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projeto'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Projetos]
+      summary: Atualizar projeto
+      description: Requer autorização via ProjetoPolicy.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                codigo:
+                  type: string
+                  maxLength: 40
+                titulo:
+                  type: string
+                  maxLength: 200
+                descricao:
+                  type: string
+                status_projeto_id:
+                  type: integer
+                funcionario_id:
+                  type: integer
+                data_inicio:
+                  type: string
+                  format: date
+                data_fim:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Projeto atualizado
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Projetos]
+      summary: Excluir projeto
+      description: Requer perfil admin.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Projeto excluído
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /projetos/{id}/aprovar:
+    post:
+      tags: [Projetos]
+      summary: Aprovar proposta de projeto
+      description: >
+        Exclusivo do administrador. Grava `situacao=APROVADO`, `aprovado_por` e
+        `aprovado_em`, e concede ao autor, no próprio projeto, `projeto.editar`,
+        `reserva.criar`, `reserva.editar`, `reserva.cancelar` e `equipe.adicionar`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Projeto aprovado
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: O projeto já estava aprovado
+
+  /projetos/{id}/recusar:
+    post:
+      tags: [Projetos]
+      summary: Recusar proposta de projeto
+      description: >
+        Exclusivo do administrador. Grava `situacao=RECUSADO` e o motivo, que o
+        autor lê para corrigir e propor de novo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [motivo]
+              properties:
+                motivo:
+                  type: string
+                  maxLength: 255
+                  example: Código já usado por outro projeto do grupo
+      responses:
+        '200':
+          description: Projeto recusado
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Motivo não informado
+
+  # ═══════════════════════════════════════════════════════
+  #  EQUIPE DO PROJETO
+  # ═══════════════════════════════════════════════════════
+
+  /projetos/{projeto}/equipe:
+    get:
+      tags: [Equipe]
+      summary: Listar equipe do projeto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de membros com função e permissões
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+    post:
+      tags: [Equipe]
+      summary: Adicionar membro à equipe
+      description: Requer autorização no projeto.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [funcionario_id]
+              properties:
+                funcionario_id:
+                  type: integer
+                funcao:
+                  type: string
+                  maxLength: 80
+                  description: Função na equipe
+      responses:
+        '201':
+          description: Membro adicionado
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /projetos/{projeto}/equipe/{funcionario}:
+    put:
+      tags: [Equipe]
+      summary: Atualizar função do membro
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: funcionario
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                funcao:
+                  type: string
+                  maxLength: 80
+      responses:
+        '200':
+          description: Função atualizada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+    delete:
+      tags: [Equipe]
+      summary: Remover membro da equipe
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: funcionario
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Membro removido
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /projetos/{projeto}/equipe/{funcionario}/permissoes:
+    put:
+      tags: [Equipe]
+      summary: Definir permissões do membro
+      description: Requer perfil admin ou SU. Define permissões de CRUD dentro do projeto.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: funcionario
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permissoes:
+                  type: array
+                  items:
+                    type: string
+                  description: Tokens de permissão por projeto
+      responses:
+        '200':
+          description: Permissões atualizadas
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ═══════════════════════════════════════════════════════
+  #  CASAS DE VEGETAÇÃO
+  # ═══════════════════════════════════════════════════════
+
+  /casas-vegetacao:
+    get:
+      tags: [Casas de Vegetação]
+      summary: Listar casas de vegetação
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: busca
+          in: query
+          schema:
+            type: string
+          description: Filtra por descrição ou tipo
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ATIVA, MANUTENCAO, INATIVA]
+        - name: tipo
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de casas de vegetação
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CasaVegetacao'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+    post:
+      tags: [Casas de Vegetação]
+      summary: Cadastrar casa de vegetação
+      description: Requer perfil `CASA-I`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codigo, descricao]
+              properties:
+                codigo:
+                  type: string
+                  maxLength: 20
+                descricao:
+                  type: string
+                  maxLength: 150
+                tipo:
+                  type: string
+                  maxLength: 60
+                  default: "Casa de vegetação"
+                localizacao:
+                  type: string
+                  maxLength: 60
+                area_m2:
+                  type: integer
+                capacidade:
+                  type: integer
+                unidade_capacidade:
+                  type: string
+                  enum: [VASO, BANCADA]
+                capacidade_total:
+                  type: integer
+                vasos_3cm:
+                  type: integer
+                vasos_5cm:
+                  type: integer
+                vasos_10cm:
+                  type: integer
+                obs:
+                  type: string
+                status:
+                  type: string
+                  enum: [ATIVA, MANUTENCAO, INATIVA]
+      responses:
+        '201':
+          description: Casa de vegetação criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CasaVegetacao'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /casas-vegetacao/tipos:
+    get:
+      tags: [Casas de Vegetação]
+      summary: Listar tipos de espaço
+      description: Retorna os tipos distintos cadastrados.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de tipos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /casas-vegetacao/{id}:
+    get:
+      tags: [Casas de Vegetação]
+      summary: Obter casa de vegetação por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detalhes da casa de vegetação
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CasaVegetacao'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Casas de Vegetação]
+      summary: Atualizar casa de vegetação
+      description: Requer perfil `CASA-A`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                codigo:
+                  type: string
+                  maxLength: 20
+                descricao:
+                  type: string
+                  maxLength: 150
+                tipo:
+                  type: string
+                  maxLength: 60
+                localizacao:
+                  type: string
+                area_m2:
+                  type: integer
+                capacidade:
+                  type: integer
+                unidade_capacidade:
+                  type: string
+                  enum: [VASO, BANCADA]
+                capacidade_total:
+                  type: integer
+                obs:
+                  type: string
+                status:
+                  type: string
+                  enum: [ATIVA, MANUTENCAO, INATIVA]
+      responses:
+        '200':
+          description: Casa de vegetação atualizada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Casas de Vegetação]
+      summary: Excluir casa de vegetação
+      description: Requer perfil `CASA-E`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Excluída
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /casas-vegetacao/{id}/situacao:
+    patch:
+      tags: [Casas de Vegetação]
+      summary: Alterar situação
+      description: "Requer perfil admin. Alterna entre ATIVA, MANUTENCAO e INATIVA."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ATIVA, MANUTENCAO, INATIVA]
+      responses:
+        '200':
+          description: Situação alterada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /casas-vegetacao/{id}/disponibilidade:
+    get:
+      tags: [Casas de Vegetação]
+      summary: Verificar disponibilidade
+      description: Retorna a capacidade disponível por período.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: data_inicio
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: data_fim
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Disponibilidade do período
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  # ═══════════════════════════════════════════════════════
+  #  RESERVAS
+  # ═══════════════════════════════════════════════════════
+
+  /reservas:
+    get:
+      tags: [Reservas]
+      summary: Listar reservas
+      description: Admin vê todas; demais veem apenas dos seus projetos.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: casa_vegetacao_id
+          in: query
+          schema:
+            type: integer
+        - name: projeto_id
+          in: query
+          schema:
+            type: integer
+        - name: situacao
+          in: query
+          schema:
+            type: string
+            enum: [PENDENTE, APROVADA, CANCELADA]
+        - name: data_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: data_fim
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Lista de reservas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reserva'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+    post:
+      tags: [Reservas]
+      summary: Criar reserva
+      description: |
+        Requer perfil `RESERVA-I` ou `reserva.criar` no projeto.
+        Valida se a quantidade cabe na capacidade livre do período.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [casa_vegetacao_id, funcionario_id, quantidade, data_inicio, data_fim, finalidade]
+              properties:
+                casa_vegetacao_id:
+                  type: integer
+                funcionario_id:
+                  type: integer
+                  description: Pesquisador responsável
+                projeto_id:
+                  type: integer
+                  description: Obrigatório para não-admin
+                quantidade:
+                  type: integer
+                  minimum: 1
+                data_inicio:
+                  type: string
+                  format: date
+                data_fim:
+                  type: string
+                  format: date
+                finalidade:
+                  type: string
+                  maxLength: 255
+                obs:
+                  type: string
+      responses:
+        '201':
+          description: Reserva criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserva'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /reservas/{id}:
+    get:
+      tags: [Reservas]
+      summary: Obter reserva por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detalhes da reserva
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserva'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Reservas]
+      summary: Atualizar reserva pendente
+      description: Requer autorização via ReservaPolicy. Revalida capacidade.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                casa_vegetacao_id:
+                  type: integer
+                quantidade:
+                  type: integer
+                  minimum: 1
+                data_inicio:
+                  type: string
+                  format: date
+                data_fim:
+                  type: string
+                  format: date
+                finalidade:
+                  type: string
+                  maxLength: 255
+                obs:
+                  type: string
+      responses:
+        '200':
+          description: Reserva atualizada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Reservas]
+      summary: Excluir reserva
+      description: Requer autorização via ReservaPolicy.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Reserva excluída
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /reservas/{id}/aprovar:
+    post:
+      tags: [Reservas]
+      summary: Aprovar reserva
+      description: Requer perfil `RESERVA-A`. Revalida capacidade no momento da aprovação.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Reserva aprovada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Capacidade insuficiente no momento da aprovação
+
+  /reservas/{id}/cancelar:
+    post:
+      tags: [Reservas]
+      summary: Cancelar reserva
+      description: Requer autorização via ReservaPolicy.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Reserva cancelada
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ═══════════════════════════════════════════════════════
+  #  ASSISTENTE (CHAT LLM)
+  # ═══════════════════════════════════════════════════════
+
+  /assistente:
+    get:
+      tags: [Assistente]
+      summary: Verificar disponibilidade do assistente
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status do assistente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disponivel:
+                    type: boolean
+
+    post:
+      tags: [Assistente]
+      summary: Enviar mensagem ao assistente
+      description: |
+        Envia mensagem ao LLM (Groq). A última mensagem deve ter `role: "user"`.
+        **Rate limit:** configurável via `GROQ_LIMITE_POR_MINUTO`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mensagens]
+              properties:
+                mensagens:
+                  type: array
+                  maxItems: 32
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                        maxLength: 2000
+      responses:
+        '200':
+          description: Resposta do assistente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resposta:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  # ═══════════════════════════════════════════════════════
+  #  TABELAS DE APOIO
+  # ═══════════════════════════════════════════════════════
+
+  /cargos:
+    get:
+      tags: [Tabelas de Apoio]
+      summary: Listar cargos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: busca
+          in: query
+          schema:
+            type: string
+          description: Filtra por nome
+      responses:
+        '200':
+          description: Lista de cargos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cargo'
+
+  /status-projeto:
+    get:
+      tags: [Tabelas de Apoio]
+      summary: Listar status de projeto
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de status com flag encerrado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatusProjeto'
+
+  /permissoes/catalogo:
+    get:
+      tags: [Tabelas de Apoio]
+      summary: Catálogo de permissões
+      description: Retorna todas as permissões disponíveis por projeto.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Catálogo de permissões
+
+  # ═══════════════════════════════════════════════════════
+  #  AUDITORIA
+  # ═══════════════════════════════════════════════════════
+
+  /auditorias:
+    get:
+      tags: [Auditoria]
+      summary: Listar registros de auditoria
+      description: Requer perfil admin.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: funcionario_id
+          in: query
+          schema:
+            type: integer
+          description: Filtra por autor
+        - name: entidade
+          in: query
+          schema:
+            type: string
+          description: Filtra por tipo de entidade
+        - name: acao
+          in: query
+          schema:
+            type: string
+          description: "Filtra por ação (CRIOU, ALTEROU, EXCLUIU, etc.)"
+        - name: data_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: data_fim
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Lista paginada de registros de auditoria
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Auditoria'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auditorias/filtros:
+    get:
+      tags: [Auditoria]
+      summary: Valores de filtro para auditoria
+      description: Retorna valores distintos de entidade e ação.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Filtros disponíveis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entidades:
+                    type: array
+                    items:
+                      type: string
+                  acoes:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ═══════════════════════════════════════════════════════
+  #  PAINEL
+  # ═══════════════════════════════════════════════════════
+
+  /painel:
+    get:
+      tags: [Painel]
+      summary: Dados do painel administrativo
+      description: Retorna números consolidados do sistema. Requer perfil admin.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dados consolidados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_funcionarios:
+                    type: integer
+                  total_projetos:
+                    type: integer
+                  total_casas:
+                    type: integer
+                  reservas_ativas:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
