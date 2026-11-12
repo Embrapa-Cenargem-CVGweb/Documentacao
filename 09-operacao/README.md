@@ -38,7 +38,7 @@ docker compose up -d --build
 ```
 
 No primeiro boot a API instala as dependências do Composer, roda as migrations
-e os seeders (cargos, status de projeto, as 50 casas de vegetação e o super
+e os seeders (cargos, status de projeto, as 51 casas de vegetação e o super
 usuário); o front roda `npm install`.
 
 **Primeiro acesso:** usuário `SU`, senha `super123` — e troque em seguida. É a

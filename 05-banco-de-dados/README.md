@@ -383,7 +383,7 @@ Os seeders são executados automaticamente no `migrate --seed` e são idempotent
 
 ### Casas de vegetação
 
-50 estufas pré-cadastradas (CVG01 a CVG50) com área, capacidade de bancadas e
+51 estufas pré-cadastradas (CVG01 a CVG51) com área, capacidade de bancadas e
 vasos medidas em campo. Distribuídas pelos setores Norte, Leste, Central e Sul.
 
 ### Super usuário

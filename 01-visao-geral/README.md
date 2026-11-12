@@ -9,7 +9,7 @@ aérea, pede reserva de capacidade por período e a administração aprova.
 
 ## 1.1 O problema
 
-O parque do Cenargen tem **50 casas de vegetação**. Antes do CVGWeb, saber quem
+O parque do Cenargen tem **51 casas de vegetação**. Antes do CVGWeb, saber quem
 estava usando qual espaço, até quando e para qual projeto dependia de planilha,
 e-mail e conversa de corredor. Dois pesquisadores podiam combinar o mesmo
 espaço sem saber, e não havia registro de quem autorizou o quê.
@@ -58,11 +58,11 @@ Administração cadastra a pessoa → convite por e-mail → ela cria a senha
 
 | Módulo | Tela | Documentação técnica |
 | :--- | :--- | :--- |
-| Mapa | Foto aérea com os marcadores das 50 estufas | [Front-end](../04-frontend/README.md#telas) |
+| Mapa | Foto aérea com os marcadores das 51 estufas | [Front-end](../04-frontend/README.md#telas) |
 | Reservas | Pedido, aprovação, cancelamento e histórico | [Back-end](../03-backend/README.md#regras-de-negócio) |
 | Projetos | Projeto, equipe, líder e permissões | [Back-end](../03-backend/README.md#autorização-em-duas-camadas) |
 | Usuários | Cadastro, convite, situação e perfil | [Segurança](../07-seguranca/README.md) |
-| Espaços | Alteração das 50 casas de vegetação | [Banco de dados](../05-banco-de-dados/README.md) |
+| Espaços | Alteração das 51 casas de vegetação | [Banco de dados](../05-banco-de-dados/README.md) |
 | Logs | Auditoria de tudo que acontece | [Segurança](../07-seguranca/README.md) |
 | Assistente | Chat com LLM sobre o estado do parque | [Back-end](../03-backend/README.md#assistente) |
 

@@ -86,7 +86,7 @@ src/
 | **Reservas** | `reservas.ts` | Pedir, aprovar, cancelar e acompanhar reservas |
 | **Projetos** | `projetos.ts` | Projetos, equipe, líder e concessão de permissões |
 | **Usuários** | `admin.ts` / `telas.ts` | Cadastro, convite, situação e perfil |
-| **Espaços** | `admin.ts` | Alteração das 50 casas de vegetação |
+| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação |
 | **Logs** | `auditoria.ts` | Auditoria de tudo que acontece, com filtros |
 | **Entrada** | `login.ts`, `acesso.ts` | Login, "esqueci minha senha" e criação da primeira senha pelo link |
 

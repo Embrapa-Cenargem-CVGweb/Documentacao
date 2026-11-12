@@ -76,7 +76,7 @@ bootstrap/app.php              Middleware, aliases, rate limiters e exceções
 config/cvgweb.php              Regras do CVGWeb que não são segredo
 database/
 ├── migrations/                Fonte da verdade do schema
-└── seeders/                   Cargos, status, as 50 estufas e o SU
+└── seeders/                   Cargos, status, as 51 estufas e o SU
 routes/api.php                 Todas as rotas da API
 ```
 
@@ -175,10 +175,10 @@ para corrigir e reenviar. Excluir projeto segue exclusivo do adm.
 Editar espaço, período ou quantidade de uma reserva já aprovada a devolve para
 avaliação: a alteração não se aprova sozinha.
 
-### Parque fechado em 50 espaços
+### Parque fechado em 51 espaços
 
 `config/cvgweb.php` fixa `espacos.limite = 50`. O cadastro de espaço serve para
-**alterar** uma das 50 casas de vegetação do Cenargen; criar a 51ª é recusado
+**alterar** uma das 51 casas de vegetação do Cenargen; criar a 52ª é recusado
 pela API.
 
 ### Conta sem senha
