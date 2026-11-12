@@ -93,7 +93,7 @@ DB_PASSWORD=cvgweb
 │             │   └──>│  (usuarios)      │   │   │               │
 │ id          │       │                  │   │   │ id            │
 │ nome        │       │ id               │   └──>│ funcionario_id│
-│ descricao   │       │ nome, nick       │       │ codigo, titulo│
+│ descricao   │       │ nome, cargo_id   │       │ codigo, titulo│
 └─────────────┘       │ email, matricula │       │ status_proj_id│──┐
                       │ tipo, perfil     │       │ data_inicio   │  │
                       │ password         │       │ data_fim      │  │
@@ -170,9 +170,8 @@ mas ainda não definiu a senha via convite.
 | --- | --- | --- | --- |
 | `id` | bigint unsigned | PK, auto_increment | |
 | `nome` | varchar(150) | NOT NULL | Nome completo |
-| `nick` | varchar(30) | UNIQUE, NOT NULL | Nome de usuário |
-| `matricula` | varchar(20) | UNIQUE, nullable | Matrícula funcional |
-| `email` | varchar(150) | UNIQUE, nullable | E-mail |
+| `matricula` | varchar(20) | UNIQUE, nullable | Identificador interno (rótulo na tela) |
+| `email` | varchar(150) | UNIQUE, NOT NULL | E-mail — único identificador de entrada (o `nick` foi removido em `2026_11_12_000002`) |
 | `email_verified_at` | timestamp | nullable | Data de verificação |
 | `tipo` | varchar(20) | NOT NULL, default `FUNCIONARIO` | `SU`, `ADMIN`, `FUNCIONARIO` |
 | `perfil` | varchar(255) | NOT NULL | Tokens de permissão: `/SU/`, `/FUNCIONARIO-I/A/E/`, `/RESERVA-I/A/`, `/CASA-I/A/E/` |
@@ -389,9 +388,9 @@ vasos medidas em campo. Distribuídas pelos setores Norte, Leste, Central e Sul.
 
 ### Super usuário
 
-| Nick | Senha | Tipo | Perfil |
+| E-mail | Senha | Tipo | Perfil |
 | --- | --- | --- | --- |
-| `SU` | `super123` | SU | `/SU/` |
+| `admin@cvgweb.local` (`CVGWEB_SU_EMAIL`) | `super123` | SU | `/SU/` |
 
 > **Troque a senha no primeiro acesso.**
 

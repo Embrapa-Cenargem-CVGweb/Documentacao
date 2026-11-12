@@ -93,7 +93,7 @@ npm run test:e2e:report
 | --- | --- | --- |
 | `CVG_URL` | `http://localhost:5173` | Endereço do front-end |
 | `CVG_API` | `http://localhost:8000/api` | Endereço da API |
-| `CVG_NICK` | `SU` | Usuário para login nos testes |
+| `CVG_EMAIL` | `admin@cvgweb.local` | E-mail para login nos testes |
 | `CVG_SENHA` | `super123` | Senha do usuário |
 | `CVG_RUN` | `T1` | Identificador da execução (prefixo dos dados criados) |
 | `CVG_ESTUFA` | `CVG50` | Código da estufa real usada para reservas |

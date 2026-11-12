@@ -58,8 +58,8 @@ utiliza sessões baseadas em cookies — toda comunicação é stateless via
 ```
 Cliente                          Servidor
   │                                │
-  ├── POST /login ──────────────> │  1. Valida nick + senha (bcrypt 12 rounds)
-  │   { nick, senha }             │  2. Verifica se usuário está ativo
+  ├── POST /login ──────────────> │  1. Valida e-mail + senha (bcrypt 12 rounds)
+  │   { email, senha }            │  2. Verifica se usuário está ativo
   │                                │  3. Verifica se senha foi definida
   │ <── 200 { token, user } ──── │  4. Revoga tokens anteriores (1 ativo por vez)
   │                                │  5. Cria novo token Sanctum
@@ -153,10 +153,10 @@ Dual-layer para impedir força bruta:
 
 ```php
 RateLimiter::for('login', function (Request $request) {
-    $identificador = mb_strtolower(trim($request->input('nick')));
+    $identificador = mb_strtolower(trim($request->input('email')));
     return [
         Limit::perMinute(5)->by($request->ip()),           // máx 5/min por IP
-        Limit::perMinute(5)->by('login|' . $identificador), // máx 5/min por nick
+        Limit::perMinute(5)->by('login|' . $identificador), // máx 5/min por e-mail
     ];
 });
 ```
@@ -181,6 +181,17 @@ RateLimiter::for('acesso', function (Request $request) {
 
 **Por que 3 por e-mail:** impede que várias origens inundem a mesma caixa de
 entrada com e-mails de recuperação.
+
+#### Resposta única em "esqueci minha senha"
+
+`POST /esqueci-senha` responde **sempre a mesma coisa**, exista a conta ou
+não — dizer "este e-mail não está cadastrado" entregaria a quem tentasse
+adivinhar quais endereços têm acesso ao sistema.
+
+Pelo mesmo motivo o texto **não afirma que o e-mail saiu**: mudar a mensagem
+só quando o envio falha revelaria que a conta existe. Ele diz o que fazer se
+nada chegar, e a falha de envio fica registrada no convite, aparecendo para a
+administração no painel de usuários ("convites que não chegaram").
 
 #### Assistente (`throttle:assistente`)
 

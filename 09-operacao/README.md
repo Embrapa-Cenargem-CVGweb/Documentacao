@@ -189,7 +189,7 @@ docker compose exec backend php artisan db:seed
 docker compose exec backend php artisan test
 
 docker compose exec backend php artisan cvgweb:senha --listar
-docker compose exec backend php artisan cvgweb:senha SU novasenha
+docker compose exec backend php artisan cvgweb:senha admin@cvgweb.local novasenha
 docker compose exec backend php artisan cvgweb:limpar-reservas --espaco=CVG01
 ```
 

@@ -64,7 +64,7 @@ Autentica o usuário e retorna um token Sanctum.
 
 | Campo | Tipo | Obrigatório | Descrição |
 | --- | --- | --- | --- |
-| `login` | string | Sim | E-mail ou nick do usuário |
+| `email` | string | Sim | E-mail do usuário (único identificador de entrada) |
 | `senha` | string | Sim | Senha do usuário |
 
 **Respostas:**
@@ -142,7 +142,7 @@ Valida um token de convite ou recuperação de senha.
 
 | Status | Descrição |
 | --- | --- |
-| `200` | Token válido. Retorna `{ funcionario: { nome, nick, email } }` |
+| `200` | Token válido. Retorna `{ nome, email, tipo, primeiro_acesso, expira_em }` |
 | `404` | Token inválido, expirado ou já utilizado |
 
 ---
@@ -190,6 +190,77 @@ Retorna a situação atual do serviço de e-mail (se o provedor configurado est�
 
 ## 3. Funcionários
 
+### Sino de avisos
+
+🔒 **Autenticada**
+
+`GET /notificacoes` → `{ nao_lidas, avisos: [{ chave, tipo, tom, titulo, texto, quando, lida, link }] }`.
+Os avisos são **calculados na hora** (sem fila nem tarefa agendada):
+
+- **Reserva acabando** (status `ATIVA`, da própria pessoa), com marcos proporcionais
+  à duração: até 1 dia → 6 h antes; até 1 semana → 1 dia antes; até 1 mês →
+  1 semana e 1 dia antes; mais que isso → a cada 30 dias, e depois 1 semana e
+  1 dia antes. Mostra só o marco mais recente; reserva terminada aparece por 2 dias.
+- Reserva aprovada, ou cancelada por outra pessoa; convite para projeto recebido;
+  convite enviado que foi aceito ou recusado; proposta aprovada ou recusada
+  (últimos 7 dias).
+- **Só para o admin:** reservas aguardando aprovação, propostas aguardando decisão,
+  quem ainda não criou a senha (e se o e-mail do convite não saiu ou venceu),
+  projeto com líder desativado.
+
+`POST /notificacoes/lidas` com `{ chaves: [...] }` ou `{ todas: true }` grava o
+que a pessoa leu (tabela `notificacoes_lidas`). Um marco novo tem chave nova e
+acende o sino de novo.
+
+---
+
+### Liderança de projeto
+
+- Só o **líder** (e o admin) muda o papel na equipe, e nunca o próprio. O líder sai
+  do papel **passando** a liderança: marca outro membro como `LIDER`; quem assume
+  recebe o mínimo para conduzir (`projeto.editar`, `reserva.criar/editar/cancelar`,
+  `equipe.adicionar`).
+- `GET /funcionarios/{id}/lideranca` (admin): projetos que a pessoa lidera, com quem
+  da equipe pode assumir.
+- `PATCH /funcionarios/{id}/situacao` com `ativo: false` de quem lidera projetos
+  **exige** `novos_lideres: { projeto_id: funcionario_id }` (pessoa ativa, outra);
+  sem isso responde 422 com `projetos_liderados`. Vale também para `DELETE /funcionarios/{id}`.
+- `GET /projetos` traz `lider_ativo` (falso só em dado antigo).
+
+---
+
+### Convites para projetos
+
+🔒 **Autenticada**
+
+Quem está no projeto chama outras pessoas; a pessoa só entra na equipe se
+aceitar, e entra como `PESQUISADOR` **sem nenhuma permissão** (só acompanha).
+O convidado recebe um e-mail de aviso (enviado depois da resposta: se o
+serviço de e-mail estiver fora, o convite vale do mesmo jeito).
+
+| Método e rota | Quem pode | O que faz |
+| --- | --- | --- |
+| `GET /convites` | qualquer um | `{ recebidos, enviados }`: os pendentes para a pessoa e os que ela mandou nos últimos 90 dias |
+| `POST /projetos/{id}/convites` | admin, quem tem `equipe.adicionar` no projeto, ou o autor de proposta pendente | Body `{ convidados: int[], mensagem?: string }`. Pula quem já está na equipe ou já tem convite pendente (lista em `pulados`); 422 se ninguém novo |
+| `POST /convites/{id}/aceitar` | só o convidado | Entra na equipe sem permissão |
+| `POST /convites/{id}/recusar` | só o convidado | Encerra o convite |
+| `DELETE /convites/{id}` | quem convidou, ou o admin | Cancela um convite ainda sem resposta |
+
+Status: `PENDENTE`, `ACEITO`, `RECUSADO`, `CANCELADO`. `GET /me/contexto`
+traz `convites_pendentes` (o contador do botão Convites).
+
+---
+
+### `GET /funcionarios/opcoes`
+
+🔒 **Autenticada** — qualquer funcionário
+
+Pessoas ativas para escolher como participantes de um projeto:
+`[{ id, nome, cargo }]`, em ordem de nome. Sem e-mail nem situação do acesso
+(isso continua só em `GET /funcionarios`).
+
+---
+
 ### `GET /funcionarios`
 
 🔒 **Autenticada** · Requer perfil `FUNCIONARIO-C` ou superior
@@ -200,7 +271,7 @@ Lista funcionários com paginação e busca.
 
 | Param | Tipo | Descrição |
 | --- | --- | --- |
-| `busca` | string | Filtra por nome ou nick (LIKE com escape de wildcards) |
+| `nome` / `email` | string | Filtra por nome (contém) ou e-mail (começa com), com escape de wildcards |
 | `ativo` | boolean | Filtra por situação (`1` = ativos, `0` = inativos) |
 | `projeto_id` | int | Filtra membros de um projeto específico |
 | `page` | int | Página (paginação Laravel padrão) |
@@ -227,14 +298,11 @@ Cadastra um novo funcionário. O sistema envia automaticamente o e-mail de convi
 | Campo | Tipo | Obrigatório | Descrição |
 | --- | --- | --- | --- |
 | `nome` | string | Sim | Nome completo (máx. 150) |
-| `nick` | string | Sim | Nome de usuário único (máx. 30) |
 | `email` | string | Sim | E-mail válido (RFC strict, máx. 150) |
-| `matricula` | string | Não | Matrícula funcional (máx. 20) |
-| `cargo_id` | int | Não | FK para `cargos` |
+| `matricula` | string | Não | Identificador interno (máx. 20) |
+| `cargo_id` | int | Sim | FK para `cargos`. Também define o acesso: `Administrador` = super usuário (só o SU pode dar esse cargo); os demais = funcionário comum |
 | `obs` | string | Não | Observações |
 | `projeto_id` | int | Condicional | Obrigatório para quem cadastra via permissão de projeto |
-| `super_usuario` | boolean | Não | Só o SU pode definir |
-| `permissoes` | string[] | Não | Tokens de permissão global (só admin) |
 
 ---
 
@@ -245,6 +313,8 @@ Cadastra um novo funcionário. O sistema envia automaticamente o e-mail de convi
 Atualiza dados do funcionário. Campos `ativo` e `senha` têm restrições:
 - `ativo`: só admin pode alterar.
 - `senha`: só o próprio usuário ou admin.
+- `cargo_id`: dar ou tirar o cargo `Administrador` muda quem é admin e só o
+  SU pode fazer; o SU não tira o próprio cargo de Administrador (422).
 
 ---
 
@@ -276,7 +346,10 @@ Desativa o funcionário (soft delete) e revoga todos os tokens.
 
 🔒 **Autenticada**
 
-Lista projetos. Admin vê todos; demais veem apenas os seus.
+Lista projetos. **Todos veem todos** (só para ver: mexer continua exigindo
+estar na equipe com a permissão). Proposta `RECUSADO` só aparece para o autor,
+a equipe e o admin. Cada projeto traz o que a pessoa logada é nele:
+`participo`, `sou_lider` e `posso_convidar`.
 
 **Query params:**
 
@@ -308,14 +381,17 @@ até ser aprovado.
 
 | Campo | Tipo | Obrigatório | Descrição |
 | --- | --- | --- | --- |
-| `codigo` | string | Sim | Código único (máx. 40) |
-| `titulo` | string | Sim | Título do projeto (máx. 200) |
-| `descricao` | string | Não | Descrição |
+| `codigo` | string | Não | Gerado sozinho (`P-AAAA-NNN`) quando não vem; se vier, não pode repetir |
+| `titulo` | string | Sim | Nome do projeto (máx. 200) |
+| `descricao` | string | Sim | O que o projeto vai fazer (máx. 5000) — a reserva não tem mais observação para isso |
 | `status_projeto_id` | int | Não | FK para `status_projeto`; em branco, usa o primeiro cadastrado |
 | `funcionario_id` | int | Sim | Pesquisador responsável — ignorado para quem não é admin, que é sempre o próprio |
 | `data_inicio` | date | Não | Data de início |
 | `data_fim` | date | Não | Data de fim (≥ data_inicio) |
-| `colaboradores` | int[] | Não | IDs de funcionários para a equipe; só o admin monta equipe na criação |
+| `colaboradores` | int[] | Não | Participantes (funcionários **ativos**). Qualquer um que cria pode indicar; entram como `PESQUISADOR` sem nenhuma permissão (só leitura) — permissões continuam sendo concessão do admin |
+
+O projeto não pertence a uma estufa: cada reserva aponta para uma estufa e um
+projeto, então o mesmo projeto pode usar vasos de várias estufas.
 
 ---
 
@@ -543,7 +619,7 @@ Cria uma reserva. Valida se a quantidade cabe na capacidade livre do período.
 | `data_inicio` | date | Sim | Data de início |
 | `data_fim` | date | Sim | Data de fim (≥ data_inicio) |
 | `finalidade` | string | Sim | Finalidade da reserva (máx. 255) |
-| `obs` | string | Não | Observações |
+| `obs` | string | Não | Ainda aceito (reservas antigas têm), mas a tela não pede mais: o que se faz é explicado na descrição do projeto |
 
 ---
 

@@ -280,7 +280,7 @@ quais modelos a chave alcança e escolher o melhor.
 
 ```bash
 php artisan cvgweb:senha --listar              # lista os usuários
-php artisan cvgweb:senha SU novasenha          # define senha pela linha de comando
+php artisan cvgweb:senha admin@cvgweb.local novasenha  # define senha pela linha de comando
 php artisan cvgweb:limpar-reservas --espaco=CVG01
 php artisan cvgweb:testar-email alguem@exemplo.com
 ```
