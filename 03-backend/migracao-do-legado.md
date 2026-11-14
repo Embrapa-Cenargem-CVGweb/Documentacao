@@ -72,7 +72,7 @@ php artisan migrate --seed    # cria tabelas + cargos, status e super usuário
 php artisan serve
 ```
 
-Login inicial: **e-mail `admin@cvgweb.local` / senha `super123`** (troque em produção).
+Login inicial: **e-mail `admin@cvgweb.local` / senha `supersu`** (troque em produção).
 O `nick` do legado foi removido: a entrada é só por e-mail.
 
 ## Endpoints principais

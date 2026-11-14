@@ -41,7 +41,7 @@ No primeiro boot a API instala as dependências do Composer, roda as migrations
 e os seeders (cargos, status de projeto, as 51 casas de vegetação e o super
 usuário); o front roda `npm install`.
 
-**Primeiro acesso:** usuário `SU`, senha `super123` — e troque em seguida. É a
+**Primeiro acesso:** e-mail `admin@cvgweb.local`, senha `supersu` — e troque em seguida. É a
 única conta criada pelo seeder; as demais são cadastradas pela tela e recebem
 link de convite por e-mail.
 
@@ -76,6 +76,7 @@ link de convite por e-mail.
 | `CVGWEB_INTERVALO_REENVIO` | Segundos de espera antes de reenviar convite para a mesma pessoa (padrão 60) |
 | `CVGWEB_LINK_MANUAL` | Quando o e-mail não sai, devolve o link ao administrador na resposta |
 | `CVGWEB_LIMITE_ESPACOS` | Limite de casas de vegetação cadastradas (padrão 50) |
+| `CVGWEB_SU_EMAIL` / `CVGWEB_SU_SENHA` | E-mail e senha com que o super usuário é **criado** no primeiro boot (padrão `admin@cvgweb.local` / `supersu`). Não alteram uma conta que já existe: depois, a senha se troca pela tela |
 
 > Gere a `APP_KEY` com
 > `docker compose run --rm backend php artisan key:generate --show` e cole no
@@ -233,7 +234,23 @@ leva o conteúdo.
 A fonte da verdade são as **migrations**, em
 `Embrapa-backend/database/migrations`. O `cvgweb-schema.sql` da raiz é um
 artefato **derivado**, para quem quer ver o schema inteiro num lugar só —
-nunca editar à mão. Mude a migration e regere o arquivo.
+nunca editar à mão. Mude a migration e regere o arquivo:
+
+```bash
+bash scripts/exportar-schema.sh
+```
+
+O script usa um banco temporário (não toca no banco em uso) e precisa dos
+containers no ar.
+
+### Upload de documentos
+
+Os documentos dos projetos ficam em
+`Embrapa-backend/storage/app/private/projetos/`, fora da pasta pública —
+inclua essa pasta no backup. A API aceita até 10 MB por arquivo; a imagem do
+back-end sobe com `upload_max_filesize=12M` e `post_max_size=16M`
+(`Dockerfile`). Depois de atualizar o código, reconstrua a imagem para o
+limite valer: `docker compose up -d --build backend`.
 
 Estrutura detalhada: [5. Banco de dados](../05-banco-de-dados/README.md).
 

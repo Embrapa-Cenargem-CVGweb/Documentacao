@@ -45,17 +45,19 @@ do Laravel 12. Toda a estrutura é criada e versionada via migrations.
 
 O arquivo `cvgweb-schema.sql` na raiz do repositório de orquestração contém o
 schema completo gerado a partir das migrations, para consulta e importação
-manual. **Nunca edite este arquivo à mão** — use `scripts/exportar-schema.sh`
-para regerar.
+manual. **Nunca edite este arquivo à mão** — rode
+`bash scripts/exportar-schema.sh` na raiz (com os containers no ar) para
+regerar. O script não lê o banco em uso: cria um banco temporário, roda
+migrations e seeders nele, exporta e apaga.
 
 ### Números atuais
 
 | Métrica | Valor |
 | --- | --- |
-| Tabelas de domínio | 8 |
-| Tabelas de infraestrutura | 7 |
-| Migrations | 21 |
-| Casas de vegetação pré-cadastradas | 50 |
+| Tabelas de domínio | 12 |
+| Tabelas de infraestrutura | 8 |
+| Migrations | 34 |
+| Casas de vegetação pré-cadastradas | 51 |
 | Cargos pré-cadastrados | 5 |
 | Status de projeto | 5 |
 
@@ -166,9 +168,16 @@ Cargos do quadro de funcionários do Cenargen.
 Usuários do sistema. O campo `password` nulo indica que o usuário foi cadastrado
 mas ainda não definiu a senha via convite.
 
+> **O super usuário tem o id 0.** Ele não conta como usuário: a primeira
+> pessoa cadastrada é a 1, a segunda a 2. Para o MySQL aceitar gravar o 0
+> numa coluna auto_increment, a conexão usa o modo `NO_AUTO_VALUE_ON_ZERO`
+> (`config/database.php`), e o `cvgweb-schema.sql` também. A migration
+> `super_usuario_no_id_zero` move o super usuário de um banco antigo para o 0
+> e renumera os demais, atualizando todas as tabelas que apontam para eles.
+
 | Coluna | Tipo | Restrições | Descrição |
 | --- | --- | --- | --- |
-| `id` | bigint unsigned | PK, auto_increment | |
+| `id` | bigint unsigned | PK, auto_increment | 0 = super usuário |
 | `nome` | varchar(150) | NOT NULL | Nome completo |
 | `matricula` | varchar(20) | UNIQUE, nullable | Identificador interno (rótulo na tela) |
 | `email` | varchar(150) | UNIQUE, NOT NULL | E-mail — único identificador de entrada (o `nick` foi removido em `2026_11_12_000002`) |
@@ -243,7 +252,9 @@ Equipe de cada projeto (além do responsável). Cada colaborador pode ter permis
 ### 4.6 `casas_vegetacao`
 
 Estufas e espaços experimentais do Cenargen. A capacidade reservável é definida
-por `capacidade_total` + `unidade_capacidade`.
+por `capacidade_total` + `unidade_capacidade`. Numa estufa contada em vasos, a
+lista `vasos` (por tamanho) define a capacidade: a API soma as quantidades e
+grava em `capacidade_total`.
 
 | Coluna | Tipo | Restrições | Descrição |
 | --- | --- | --- | --- |
@@ -253,14 +264,15 @@ por `capacidade_total` + `unidade_capacidade`.
 | `tipo` | varchar(60) | NOT NULL, default `Casa de vegetação` | Tipo do espaço |
 | `localizacao` | varchar(60) | nullable | Setor no campus |
 | `area_m2` | int unsigned | nullable | Área em m² |
-| `capacidade` | smallint unsigned | NOT NULL, default `0` | Nº de bancadas (informativo) |
+| `temperatura_min` | decimal(4,1) | nullable | Temperatura mínima em que a estufa é mantida (°C) |
+| `temperatura_max` | decimal(4,1) | nullable | Temperatura máxima (°C). Igual à mínima = temperatura fixa |
+| `capacidade` | smallint unsigned | NOT NULL, default `0` | Nº de bancadas. Numa estufa de vasos, também se reservam |
 | `unidade_capacidade` | varchar(10) | NOT NULL, default `VASO` | `VASO` ou `BANCADA` |
 | `capacidade_total` | int unsigned | NOT NULL, default `0` | Capacidade reservável |
-| `vasos_3cm` | int unsigned | nullable | |
-| `vasos_5cm` | int unsigned | nullable | |
-| `vasos_10cm` | int unsigned | nullable | |
+| `vasos` | json | nullable | Vasos por tamanho: `[{"tamanho_cm": 3, "quantidade": 5}, ...]`. Em estufa de vasos, a soma é a `capacidade_total` |
 | `obs` | text | nullable | |
-| `status` | varchar(15) | NOT NULL, default `ATIVA` | `ATIVA`, `MANUTENCAO`, `INATIVA` |
+| `status` | varchar(15) | NOT NULL, default `ATIVA` | `ATIVA`, `RESERVADA`, `OCUPADA`, `MANUTENCAO`, `INATIVA` |
+| `motivo_situacao` | varchar(255) | nullable | Por que está fora de uso. Limpo automaticamente quando volta para `ATIVA` |
 | `created_at` | timestamp | nullable | |
 | `updated_at` | timestamp | nullable | |
 
@@ -340,6 +352,38 @@ Trilha de auditoria: quem criou, alterou ou excluiu o quê.
 
 ---
 
+### 4.10 `projeto_documentos`
+
+Documentação do experimento: o que a equipe guarda dentro do projeto. Um item
+pode ser um arquivo (documento, protocolo, imagem), uma anotação só de texto,
+ou os dois.
+
+| Coluna | Tipo | Restrições | Descrição |
+| --- | --- | --- | --- |
+| `id` | bigint unsigned | PK, auto_increment | |
+| `projeto_id` | bigint unsigned | FK → `projetos.id`, ON DELETE CASCADE | |
+| `funcionario_id` | bigint unsigned | FK → `funcionarios.id`, ON DELETE SET NULL | Quem enviou |
+| `autor_nome` | varchar(150) | nullable | Nome de quem enviou (snapshot) |
+| `tipo` | varchar(20) | NOT NULL | `DOCUMENTO`, `PROTOCOLO`, `IMAGEM` ou `ANOTACAO` |
+| `titulo` | varchar(150) | NOT NULL | |
+| `texto` | text | nullable | Anotação ou observação |
+| `arquivo_caminho` | varchar(255) | nullable | Caminho no disco privado (`storage/app/private/projetos/{id}/...`) |
+| `arquivo_nome` | varchar(255) | nullable | Nome original do arquivo |
+| `arquivo_mime` | varchar(120) | nullable | |
+| `arquivo_tamanho` | bigint unsigned | nullable | Em bytes |
+| `created_at` / `updated_at` | timestamp | nullable | |
+
+**Índices:** `(projeto_id, created_at)`.
+
+O arquivo nunca fica em pasta pública: só é entregue pela API, a quem é da
+equipe do projeto. Ao excluir o registro, o arquivo sai do disco junto.
+
+Também fazem parte do domínio `convites_projeto` (convites para entrar na
+equipe) e `notificacoes_lidas` (o que cada pessoa já leu no sino); a estrutura
+exata de todas está no `cvgweb-schema.sql`.
+
+---
+
 ## 5. Tabelas de infraestrutura
 
 Tabelas gerenciadas automaticamente pelo Laravel:
@@ -390,9 +434,12 @@ vasos medidas em campo. Distribuídas pelos setores Norte, Leste, Central e Sul.
 
 | E-mail | Senha | Tipo | Perfil |
 | --- | --- | --- | --- |
-| `admin@cvgweb.local` (`CVGWEB_SU_EMAIL`) | `super123` | SU | `/SU/` |
+| `admin@cvgweb.local` (`CVGWEB_SU_EMAIL`) | `supersu` (`CVGWEB_SU_SENHA`) | SU | `/SU/` |
 
-> **Troque a senha no primeiro acesso.**
+> **Troque a senha no primeiro acesso.** O seeder roda a cada subida do
+> container, mas só **cria** o super usuário quando ele não existe: uma senha
+> trocada pela tela não volta ao padrão num reinício. (Até 13/11/2026 ele
+> regravava a senha padrão a cada boot — ver a seção de segurança.)
 
 ---
 
@@ -425,6 +472,18 @@ cronológica pelo Laravel. O histórico completo:
 | `add_indices_to_auditorias_table` | Índices de performance |
 | `add_envio_to_convites_acesso_table` | Controle de envio do convite |
 | `alarga_acao_das_auditorias` | Amplia campo ação |
+| `add_aprovacao_to_projetos_table` | Proposta de projeto: situação, aprovador e motivo da recusa |
+| `remove_nick_from_funcionarios_table` | Login só por e-mail |
+| `create_convites_projeto_table` | Convites para a equipe de um projeto |
+| `limpa_tipo_das_casas_vegetacao` | Tipo da estufa em aberto até ser conferido |
+| `create_notificacoes_lidas_table` | Avisos do sino já lidos |
+| `insere_estufa_15_e_renumera` | 51ª estufa |
+| `add_permissoes_globais_to_funcionarios` | Permissões de sistema por pessoa |
+| `acentua_nomes_de_cargos_e_situacoes` | Acentos nos dados de apoio |
+| `reserva_guarda_a_unidade` | Reserva em vasos ou em bancadas |
+| `super_usuario_no_id_zero` | Super usuário no id 0; demais renumerados a partir do 1 |
+| `add_temperatura_vasos_e_motivo_to_casas_vegetacao` | Temperatura, vasos por tamanho (JSON) e motivo de estar fora de uso; remove `vasos_3cm/5cm/10cm` |
+| `create_projeto_documentos_table` | Documentos e anotações do projeto |
 
 ---
 

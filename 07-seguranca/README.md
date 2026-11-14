@@ -476,6 +476,51 @@ As medidas abaixo são recomendadas para implementação futura:
 
 ---
 
+## 14.1 Revisão de 14/11/2026
+
+Revisão do sistema inteiro (API, banco, front e configuração), com ataque à
+API em execução usando um visitante sem login e uma conta de usuário comum.
+
+**O que foi testado e segurou**
+
+- Sem token, todas as rotas protegidas respondem 401.
+- Usuário comum (líder só de um projeto pendente) recebeu 403 em tudo o que
+  tentou: conceder permissão a si mesmo (de sistema e de projeto), virar
+  administrador pelo cadastro, alterar ou desativar outra pessoa, aprovar o
+  próprio projeto, editar projeto alheio, entrar na equipe de outro projeto,
+  alterar estufa, aprovar ou editar reserva alheia, reservar em projeto que não
+  é dele, ler logs, ler e gravar documentos de outro projeto.
+- SQL: as poucas consultas escritas à mão usam parâmetros; buscas com `LIKE`
+  passam por `SanitizaBusca`.
+- Front: toda interpolação passa pelo template `html`, que escapa.
+- CORS restrito à origem do front; `APP_DEBUG=false` por padrão; MySQL
+  publicado só em `127.0.0.1`; tokens expiram; nenhum segredo versionado.
+
+**O que foi encontrado e corrigido**
+
+| Achado | Gravidade | Correção |
+| --- | --- | --- |
+| O seeder regravava a senha padrão do super usuário a cada subida do container: trocar a senha valia só até o próximo reinício | Alta | O seeder só cria o super usuário quando ele não existe e nunca altera um existente. A senha inicial vem de `CVGWEB_SU_SENHA` |
+| Bibliotecas com falhas conhecidas: Laravel e Symfony (HTTP Foundation, HTTP Kernel, Routing) no back-end; Vite no front | Média | `composer update` e `npm audit fix`: as duas auditorias ficaram sem alertas. `package.json` passou a exigir Vite `^6.4.6` |
+| `GET /funcionarios` entregava a um usuário comum matrícula, observações, perfil e datas de acesso dos colegas de projeto | Baixa | Resposta recortada conforme quem pede (ver API, `GET /funcionarios`) |
+| Mapa calculado com as reservas visíveis à pessoa: informação divergente entre perfis | Baixa (integridade) | Mapa passa a usar a ocupação geral do calendário |
+
+**Uploads (novo em 13/11/2026)** — documentos de projeto: extensões em lista
+fechada (sem HTML, SVG ou executáveis), 10 MB por arquivo, nome sorteado no
+disco, disco privado fora da pasta pública, download só pela API com
+`attachment` e `X-Content-Type-Options: nosniff`, e só para a equipe.
+
+**O que continua sendo decisão de implantação**
+
+- O compose sobe a API com `php artisan serve` e o front com o servidor de
+  desenvolvimento do Vite, em HTTP. Serve para uso local e homologação; em
+  produção, use um servidor web de verdade com HTTPS (o token viaja no
+  cabeçalho de cada requisição).
+- O link do convite usa `FRONTEND_URL`. Com `localhost`, só abre na máquina
+  do servidor.
+
+---
+
 ## 15. Checklist de deploy
 
 Antes de publicar o sistema em produção, verificar:
@@ -486,7 +531,7 @@ Antes de publicar o sistema em produção, verificar:
 - [ ] Certificado TLS/SSL configurado no servidor
 - [ ] `FRONTEND_URL` correto no `.env` do backend (CORS)
 - [ ] `VITE_API_URL` correto no `.env` do frontend
-- [ ] Senha do super usuário `SU` trocada (padrão é `super123`)
+- [ ] `CVGWEB_SU_SENHA` definida antes do primeiro boot, ou senha do super usuário trocada pela tela logo após (padrão é `supersu`)
 - [ ] `DB_PASSWORD` forte e única
 - [ ] `RESEND_KEY` configurada para o domínio de produção
 - [ ] `GROQ_API_KEY` configurada

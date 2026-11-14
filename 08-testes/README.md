@@ -94,7 +94,7 @@ npm run test:e2e:report
 | `CVG_URL` | `http://localhost:5173` | Endereço do front-end |
 | `CVG_API` | `http://localhost:8000/api` | Endereço da API |
 | `CVG_EMAIL` | `admin@cvgweb.local` | E-mail para login nos testes |
-| `CVG_SENHA` | `super123` | Senha do usuário |
+| `CVG_SENHA` | `supersu` | Senha do usuário (a inicial do super usuário, `CVGWEB_SU_SENHA`) |
 | `CVG_RUN` | `T1` | Identificador da execução (prefixo dos dados criados) |
 | `CVG_ESTUFA` | `CVG50` | Código da estufa real usada para reservas |
 
@@ -137,7 +137,7 @@ tests/
 
 ```
 ┌──────────────────────┐
-│  sessao.setup.ts     │   1. Faz login com SU/super123
+│  sessao.setup.ts     │   1. Faz login com o SU/supersu
 │  (projeto "sessão")  │   2. Salva storageState em .auth/sessao.json
 └──────────┬───────────┘
            │ depende

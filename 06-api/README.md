@@ -265,7 +265,12 @@ Pessoas ativas para escolher como participantes de um projeto:
 
 🔒 **Autenticada** · Requer perfil `FUNCIONARIO-C` ou superior
 
-Lista funcionários com paginação e busca.
+Lista funcionários com paginação e busca. Quem não é da administração vê só os
+colegas dos projetos em que participa — e, deles, só o necessário para
+reconhecer a pessoa (`id`, `nome`, `email`, `cargo`, `ativo`, `situacao`,
+`projetos`). Matrícula, observações, perfil e datas de acesso e convite vão
+apenas para a administração, para quem tem `funcionario.editar` num projeto da
+pessoa e para a própria pessoa.
 
 **Query params:**
 
@@ -432,6 +437,25 @@ propor de novo.
 
 ---
 
+### Documentos e anotações do projeto
+
+Material da pesquisa guardado dentro do projeto. Ler e incluir: a equipe do
+projeto (líder e participantes) e a administração. Excluir: quem enviou, o
+líder ou a administração.
+
+| Método | Rota | O que faz |
+| --- | --- | --- |
+| `GET` | `/projetos/{projeto}/documentos` | Lista os itens, do mais novo para o mais antigo. Cada um traz `tipo`, `titulo`, `texto`, `autor`, `criado_em`, `arquivo` (`nome`, `mime`, `tamanho`) e `posso_excluir` |
+| `POST` | `/projetos/{projeto}/documentos` | Inclui um item. **multipart/form-data**: `tipo` (`DOCUMENTO`, `PROTOCOLO`, `IMAGEM`, `ANOTACAO`), `titulo` (máx. 150), `texto` (opcional, máx. 20000) e `arquivo` (opcional só em `ANOTACAO`) |
+| `GET` | `/projetos/{projeto}/documentos/{documento}/arquivo` | Baixa o arquivo (`Content-Disposition: attachment`) |
+| `DELETE` | `/projetos/{projeto}/documentos/{documento}` | Exclui o item e o arquivo |
+
+Arquivos: até **10 MB**; PDF, documentos (`doc`, `docx`, `odt`, `txt`, `rtf`),
+planilhas (`xls`, `xlsx`, `ods`, `csv`), apresentações (`ppt`, `pptx`, `odp`) e
+imagens (`png`, `jpg`, `jpeg`, `webp`, `gif`). Quem não é da equipe recebe 403.
+
+---
+
 ## 5. Equipe do projeto
 
 ### `GET /projetos/{projeto}/equipe`
@@ -543,14 +567,15 @@ Retorna a capacidade disponível por período.
 | `tipo` | string | Não | Tipo do espaço (máx. 60, padrão: "Casa de vegetação") |
 | `localizacao` | string | Não | Localização no campus (máx. 60) |
 | `area_m2` | int | Não | Área em metros quadrados |
-| `capacidade` | int | Não | Número de bancadas (informativo) |
+| `temperatura_min` | number | Não | Temperatura mínima em °C (-10 a 60) |
+| `temperatura_max` | number | Não | Temperatura máxima em °C; não pode ser menor que a mínima |
+| `capacidade` | int | Não | Número de bancadas |
 | `unidade_capacidade` | string | Não | `VASO` ou `BANCADA` |
-| `capacidade_total` | int | Não | Capacidade reservável |
-| `vasos_3cm` | int | Não | Capacidade de vasos de 3cm |
-| `vasos_5cm` | int | Não | Capacidade de vasos de 5cm |
-| `vasos_10cm` | int | Não | Capacidade de vasos de 10cm |
+| `capacidade_total` | int | Não | Capacidade reservável. Ignorada quando `vasos` vem preenchido numa estufa de vasos |
+| `vasos` | array | Não | Vasos por tamanho: `[{"tamanho_cm": 3, "quantidade": 5}, {"tamanho_cm": 20, "quantidade": 2}]` (até 20 tamanhos). A API junta tamanhos repetidos, ordena e grava a soma em `capacidade_total` |
 | `obs` | string | Não | Observações |
-| `status` | string | Não | `ATIVA`, `MANUTENCAO` ou `INATIVA` |
+| `status` | string | Não | `ATIVA`, `RESERVADA`, `OCUPADA`, `MANUTENCAO` ou `INATIVA` |
+| `motivo_situacao` | string | Não | Por que está fora de uso (máx. 255). Descartado quando `status` é `ATIVA` |
 
 ---
 
@@ -564,7 +589,27 @@ Retorna a capacidade disponível por período.
 
 🔒 **Autenticada** · Requer perfil admin
 
-Altera a situação (`ATIVA`, `MANUTENCAO`, `INATIVA`).
+Altera a situação (`ATIVA`, `RESERVADA`, `OCUPADA`, `MANUTENCAO`, `INATIVA`).
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `status` | string | Sim | Nova situação |
+| `motivo` | string | Não | Por que a estufa saiu de uso (máx. 255). Aparece na ficha do mapa, no calendário e na frase de recusa de reserva. Ao voltar para `ATIVA`, é apagado |
+
+### `GET /casas-vegetacao/calendario`
+
+🔒 **Autenticada**
+
+Ocupação de **todas** as estufas no intervalo (`de`, `ate`, até 100 dias),
+igual para qualquer pessoa logada. É a fonte do calendário e também do mapa:
+as cores dos marcadores saem daqui, não da lista de reservas da pessoa — que a
+API filtra por projeto e fazia a mesma estufa aparecer lotada para o
+administrador e livre para o pesquisador.
+
+Cada casa traz `capacidades` (por unidade), `status`, `motivo`,
+`aceita_reserva` e as `reservas` que cruzam o intervalo, cada uma com `inicio`,
+`fim`, `quantidade`, `unidade`, `status`, `projeto` (título),
+`projeto_codigo`, `responsavel`, `finalidade` e `minha`.
 
 ---
 

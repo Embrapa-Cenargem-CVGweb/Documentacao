@@ -157,10 +157,18 @@ components:
         area_m2:
           type: integer
           nullable: true
+        temperatura_min:
+          type: number
+          nullable: true
+          description: Temperatura mínima em que a estufa é mantida (°C)
+        temperatura_max:
+          type: number
+          nullable: true
+          description: Temperatura máxima (°C); igual à mínima = temperatura fixa
         capacidade:
           type: integer
           nullable: true
-          description: Número de bancadas (informativo)
+          description: Número de bancadas (numa estufa de vasos, também se reservam)
         unidade_capacidade:
           type: string
           enum: [VASO, BANCADA]
@@ -168,22 +176,30 @@ components:
         capacidade_total:
           type: integer
           nullable: true
-          description: Capacidade reservável
-        vasos_3cm:
-          type: integer
+          description: Capacidade reservável. Em estufa de vasos com a lista `vasos`, é a soma das quantidades
+        vasos:
+          type: array
           nullable: true
-        vasos_5cm:
-          type: integer
-          nullable: true
-        vasos_10cm:
-          type: integer
-          nullable: true
+          description: Vasos por tamanho
+          items:
+            type: object
+            properties:
+              tamanho_cm:
+                type: number
+                example: 10
+              quantidade:
+                type: integer
+                example: 12
         obs:
           type: string
           nullable: true
         status:
           type: string
-          enum: [ATIVA, MANUTENCAO, INATIVA]
+          enum: [ATIVA, RESERVADA, OCUPADA, MANUTENCAO, INATIVA]
+        motivo_situacao:
+          type: string
+          nullable: true
+          description: Por que está fora de uso; nulo quando ATIVA
         created_at:
           type: string
           format: date-time
@@ -1116,6 +1132,119 @@ paths:
           description: Motivo não informado
 
   # ═══════════════════════════════════════════════════════
+  #  DOCUMENTOS E ANOTAÇÕES DO PROJETO
+  # ═══════════════════════════════════════════════════════
+
+  /projetos/{projeto}/documentos:
+    get:
+      tags: [Projetos]
+      summary: Listar documentos e anotações do projeto
+      description: Só a equipe do projeto e a administração.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Itens do mais novo para o mais antigo
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Projetos]
+      summary: Incluir documento ou anotação
+      description: "Arquivo de até 10 MB (PDF, documento, planilha, apresentação ou imagem). Em ANOTACAO o arquivo é opcional e o texto, obrigatório."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [tipo, titulo]
+              properties:
+                tipo:
+                  type: string
+                  enum: [DOCUMENTO, PROTOCOLO, IMAGEM, ANOTACAO]
+                titulo:
+                  type: string
+                  maxLength: 150
+                texto:
+                  type: string
+                  maxLength: 20000
+                arquivo:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Item criado
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Arquivo ausente, grande demais ou de tipo não aceito
+
+  /projetos/{projeto}/documentos/{documento}/arquivo:
+    get:
+      tags: [Projetos]
+      summary: Baixar o arquivo de um documento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documento
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: O arquivo, como anexo
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Item sem arquivo
+
+  /projetos/{projeto}/documentos/{documento}:
+    delete:
+      tags: [Projetos]
+      summary: Excluir documento ou anotação
+      description: Quem enviou, o líder do projeto ou a administração.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projeto
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documento
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Excluído
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ═══════════════════════════════════════════════════════
   #  EQUIPE DO PROJETO
   # ═══════════════════════════════════════════════════════
 
@@ -1341,17 +1470,34 @@ paths:
                   enum: [VASO, BANCADA]
                 capacidade_total:
                   type: integer
-                vasos_3cm:
-                  type: integer
-                vasos_5cm:
-                  type: integer
-                vasos_10cm:
-                  type: integer
+                temperatura_min:
+                  type: number
+                  minimum: -10
+                  maximum: 60
+                temperatura_max:
+                  type: number
+                  minimum: -10
+                  maximum: 60
+                vasos:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [tamanho_cm, quantidade]
+                    properties:
+                      tamanho_cm:
+                        type: number
+                      quantidade:
+                        type: integer
+                        minimum: 1
                 obs:
                   type: string
                 status:
                   type: string
-                  enum: [ATIVA, MANUTENCAO, INATIVA]
+                  enum: [ATIVA, RESERVADA, OCUPADA, MANUTENCAO, INATIVA]
+                motivo_situacao:
+                  type: string
+                  maxLength: 255
       responses:
         '201':
           description: Casa de vegetação criada
@@ -1485,7 +1631,7 @@ paths:
     patch:
       tags: [Casas de Vegetação]
       summary: Alterar situação
-      description: "Requer perfil admin. Alterna entre ATIVA, MANUTENCAO e INATIVA."
+      description: "Requer perfil admin. Situações: ATIVA, RESERVADA, OCUPADA, MANUTENCAO e INATIVA. O motivo é opcional e some ao voltar para ATIVA."
       security:
         - bearerAuth: []
       parameters:
@@ -1504,7 +1650,11 @@ paths:
               properties:
                 status:
                   type: string
-                  enum: [ATIVA, MANUTENCAO, INATIVA]
+                  enum: [ATIVA, RESERVADA, OCUPADA, MANUTENCAO, INATIVA]
+                motivo:
+                  type: string
+                  maxLength: 255
+                  description: Por que a estufa saiu de uso
       responses:
         '200':
           description: Situação alterada

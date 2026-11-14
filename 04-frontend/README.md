@@ -82,11 +82,12 @@ src/
 
 | Seção | View | O que faz |
 | :--- | :--- | :--- |
-| **Mapa** | `mapa.ts` | Foto aérea com um marcador por estufa; clique abre a ficha com situação, ocupação, responsável e período |
-| **Reservas** | `reservas.ts` | Pedir, aprovar, cancelar e acompanhar reservas |
-| **Projetos** | `projetos.ts` | Projetos, equipe, líder e concessão de permissões |
-| **Usuários** | `admin.ts` / `telas.ts` | Cadastro, convite, situação e perfil |
-| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação |
+| **Mapa** | `mapa.ts` | Foto aérea com um marcador por estufa; clique abre a ficha com situação, ocupação de hoje, o dia mais cheio pela frente, temperatura, vasos por tamanho, responsável e período. O filtro esconde por situação e por espaço livre ("preciso de 6 vasos") |
+| **Calendário** | `calendario.ts` | No jeito do Teams: linha do tempo de 1 ou 2 semanas com uma faixa por estufa e as reservas como barras; visão de mês de uma estufa; cartão da reserva; "Como ler" num modal |
+| **Reservas** | `admin.ts` / `reservas.ts` | Fila de quem aprova e cancela. O formulário de reserva abre pelo mapa e pelo calendário |
+| **Projetos** | `projetos.ts` | Projetos, equipe, líder, e a ficha do projeto com documentos e anotações da pesquisa |
+| **Usuários** | `admin.ts` / `permissoes.ts` | Cadastro, convite, situação e o modal de permissões (chaves liga/desliga, um único salvar) |
+| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação: capacidade, vasos por tamanho, temperatura, situação e motivo |
 | **Logs** | `auditoria.ts` | Auditoria de tudo que acontece, com filtros |
 | **Entrada** | `login.ts`, `acesso.ts` | Login, "esqueci minha senha" e criação da primeira senha pelo link |
 
@@ -101,7 +102,8 @@ fonte que as telas consultam.
 
 | Seção | Condição |
 | :--- | :--- |
-| Mapa, Reservas, Projetos | Todo mundo — a API devolve só o que é da pessoa |
+| Mapa, Calendário, Projetos | Todo mundo |
+| Reservas | `pode.aprovar_reserva` — é a fila de aprovação. O pesquisador acompanha as reservas dele no calendário e no mapa |
 | Usuários | `pode.cadastrar_funcionario` |
 | Espaços | `pode.configurar_casa` |
 | Logs | `pode.ver_auditoria` |
@@ -167,6 +169,27 @@ dados mudaram, e cada uma se redesenha.
 Se a releitura falhar no meio da sessão, o app mantém o que já estava na tela e
 registra o motivo no console — melhor um dado de um minuto atrás do que uma
 tela vazia.
+
+**Atualização automática.** Enquanto a aba está à vista, o app relê o contexto
+de permissões, o estado das estufas e a tela aberta a cada 30 segundos e quando
+a pessoa volta para a aba (`atualizarEmSegundoPlano`, em `app.ts`). A releitura
+espera se houver um modal aberto ou um campo de escolha em foco. Quando as
+permissões mudam, `data/contexto.ts` avisa os inscritos (`aoMudarContexto`):
+menu, ficha do mapa e lista de projetos do formulário de reserva.
+
+**Duas listas de reserva.** `reservas` é o que a pessoa pode ver e mexer (a API
+filtra por projeto). `agenda` é a ocupação de todas as estufas, lida do
+calendário, e é com ela que o mapa pinta os marcadores e conta os vasos — a
+ocupação é a mesma para todo mundo.
+
+**Cores do mapa.** Verde enquanto sobra vaga na unidade principal; laranja
+(ocupada) quando ela lotou só com reservas aprovadas; azul (reservada) quando
+lotou contando pedidos que aguardam aprovação; vermelho para manutenção e
+inativa.
+
+**Ajuda dos modais.** `lib/ajuda.ts` guarda um texto curto por modal e coloca
+o botão "?" no cabeçalho de cada um; o clique abre a explicação por cima, sem
+fechar o formulário.
 
 ---
 
