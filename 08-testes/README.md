@@ -20,7 +20,7 @@ teste manual pela tela.
 
 | Suíte | Onde | O que cobre | Quantos |
 | :--- | :--- | :--- | :--- |
-| **PHPUnit** (API) | `Embrapa-backend/tests/Feature` | Regras da API, de ponta a ponta dentro do back-end: requisição HTTP → validação → permissão → banco | 153 testes em 24 arquivos |
+| **PHPUnit** (API) | `Embrapa-backend/tests/Feature` | Regras da API, de ponta a ponta dentro do back-end: requisição HTTP → validação → permissão → banco | 163 testes em 25 arquivos |
 | **Manual** | esta página, seção 4 | O que depende de tela, e-mail de verdade ou leitor de tela | 10 roteiros |
 
 Princípios:
@@ -55,8 +55,8 @@ CREATE DATABASE cvg_testes CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL PRIVILEGES ON cvg_testes.* TO 'cvgweb'@'localhost';
 ```
 
-Os 153 testes passam no SQLite, no MySQL 8.4 instalado no Windows, no MySQL
-8.0 e no MariaDB 10.4. Testes que dependem do banco:
+Os 163 testes passam no SQLite e no MySQL 8.4; a suíte também passa no MySQL
+8.0 e no MariaDB 10.4 (o do XAMPP). Testes que dependem do banco:
 
 - `SuperUsuarioIdZeroTest` — no MySQL o `AUTO_INCREMENT` não volta quando o
   teste anterior desfaz a transação; o teste confere o número exato só no
@@ -74,7 +74,7 @@ Os 153 testes passam no SQLite, no MySQL 8.4 instalado no Windows, no MySQL
 | Cadastro de usuário e segurança do e-mail | `CadastroPorCargo`, `FuncionarioEmailSeguranca`, `ConviteEnvio` |
 | Permissões | `PermissoesGlobais`, `PermissoesProjeto`, `Lideranca` |
 | Projetos | `ProjetoCriacao`, `ProjetoDocumento`, `ConviteProjeto` |
-| Reservas e capacidade | `ReservaCapacidade`, `ReservaBancadas`, `ReservaEdicao`, `Calendario` |
+| Reservas e capacidade | `ReservaCapacidade`, `ReservaBancadas`, `ReservaLote`, `ReservaEdicao`, `Calendario` |
 | Estufas | `CasaTemperaturaVasos`, `CasaHistorico` |
 | Sino de avisos | `Notificacao`, `SinoFluxos` |
 | Auditoria (logs) | `Auditoria`, `AuditoriaCobertura`, `AuditoriaResumo` |
@@ -168,7 +168,6 @@ cada release ou mudança significativa.
 
 | Alvo | Como |
 | :--- | :--- |
-| `POST /reservas/lote` (vasos e bancadas num envio) | PHPUnit feature |
 | Limites exatos de tentativa (login, acesso, assistente) | PHPUnit |
 | Rodar o `phpunit.mysql.xml` no CI, além do SQLite | GitHub Actions com serviço MySQL |
 | Validações do front (TypeScript) | Vitest |
