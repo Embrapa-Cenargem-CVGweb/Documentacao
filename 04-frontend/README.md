@@ -91,11 +91,11 @@ src/
 | Seção | View | O que faz |
 | :--- | :--- | :--- |
 | **Mapa** | `mapa.ts` | Foto aérea com um marcador por estufa; clique abre a ficha com situação, ocupação de hoje, o dia mais cheio pela frente, temperatura, vasos por tamanho, responsável e período. O filtro esconde por situação e por espaço livre ("preciso de 6 vasos") |
-| **Calendário** | `calendario.ts` | No jeito do Teams: linha do tempo semanal com uma faixa por estufa e as reservas como barras; visão de mês de uma estufa; cartão da reserva; "Como ler" num modal |
+| **Calendário** | `calendario.ts` | No jeito do Teams: linha do tempo semanal com uma faixa por estufa e as reservas como barras; visão de mês de uma estufa; cartão da reserva; "Como ler" num modal. O mini calendário leva a grade junto (setas e clique no dia). Sem rolagem lateral do tablet para cima; abaixo de ~1200px o painel sobe para cima da grade; no celular o mês cabe na tela (o dia mostra só o número de vagas) e a semana rola de lado dentro da grade, com a coluna das estufas fixa |
 | **Reservas** | `admin.ts` / `reservas.ts` | Fila de quem aprova e cancela. O formulário de reserva abre pelo mapa e pelo calendário |
 | **Projetos** | `projetos.ts` | Projetos, equipe, líder, e a ficha do projeto com documentos e anotações da pesquisa |
-| **Usuários** | `admin.ts` / `permissoes.ts` | Cadastro, convite, situação e o modal de permissões (chaves liga/desliga, um único salvar) |
-| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação: capacidade, vasos por tamanho, temperatura, situação e motivo. A tabela nunca rola de lado: colunas de largura fixa com texto que quebra (acima de 1200px), cartões em grade (notebook e tablet) e um cartão por linha (celular) — `styles/admin.css`, bloco "Tabela de espaços" |
+| **Usuários** | `admin.ts` / `permissoes.ts` | Cadastro, convite, situação e o modal de permissões (chaves liga/desliga, um único salvar). Ações só em ícones (editar, reenviar convite, desativar/reativar); a tabela segue o mesmo desenho sem rolagem lateral da de espaços |
+| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação: capacidade, vasos por tamanho, temperatura, situação e motivo. "Reservado por" mostra só os nomes; o clique no nome abre as reservas de hoje daquela pessoa no espaço (quantidade, período, projeto, finalidade, situação). A tabela nunca rola de lado: colunas de largura fixa com texto que quebra (acima de 1200px), cartões em grade (notebook e tablet) e um cartão por linha (celular) — classe `.table--cartoes` em `styles/admin.css` |
 | **Logs** | `auditoria.ts` | Auditoria de tudo que acontece, com filtros |
 | **Entrada** | `login.ts`, `acesso.ts` | Login, "esqueci minha senha" e criação da primeira senha pelo link |
 
