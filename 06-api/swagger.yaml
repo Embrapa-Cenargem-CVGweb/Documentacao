@@ -614,7 +614,7 @@ paths:
     get:
       tags: [Funcionários]
       summary: Listar funcionários
-      description: "Requer perfil `FUNCIONARIO-C` ou superior."
+      description: "O administrador vê todos; os demais, só os colegas dos projetos em que participam."
       security:
         - bearerAuth: []
       parameters:
@@ -668,7 +668,7 @@ paths:
       tags: [Funcionários]
       summary: Cadastrar funcionário
       description: |
-        Requer perfil `FUNCIONARIO-I` ou `funcionario.criar` no projeto.
+        Administrador, ou `funcionario.criar` (de sistema ou no projeto; aí `projeto_id` é obrigatório).
         Envia e-mail de convite automaticamente.
       security:
         - bearerAuth: []
@@ -752,9 +752,11 @@ paths:
       tags: [Funcionários]
       summary: Atualizar funcionário
       description: |
-        Requer perfil `FUNCIONARIO-A` ou `funcionario.editar` no projeto.
+        Requer admin, ou `funcionario.editar` num projeto em comum com a pessoa.
+        - cadastro do admin: só o próprio admin altera (403)
+        - `email`: só o admin troca o e-mail de alguém (403); a troca invalida os links de senha já enviados
         - `ativo`: só admin pode alterar
-        - `senha`: só o próprio usuário ou admin
+        - `senha`: só o próprio usuário ou admin; a troca derruba as outras sessões da pessoa
       security:
         - bearerAuth: []
       parameters:
@@ -807,7 +809,7 @@ paths:
     delete:
       tags: [Funcionários]
       summary: Desativar funcionário
-      description: Requer perfil admin. Soft delete — desativa e revoga tokens.
+      description: Só o administrador. Desativa o acesso (o cadastro fica) e derruba as sessões; com lideranças, exige `novos_lideres`.
       security:
         - bearerAuth: []
       parameters:
@@ -824,11 +826,66 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /funcionarios/{id}/permissoes:
+    get:
+      tags: [Funcionários]
+      summary: Permissões da pessoa (sistema e por projeto)
+      description: Só o administrador. Diz se é administrador e traz as permissões de sistema, o catálogo delas e o papel e as permissões em cada projeto.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "{ funcionario, administrador, globais, catalogo_global, projetos[] }"
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /funcionarios/{id}/permissoes-globais:
+    put:
+      tags: [Funcionários]
+      summary: Gravar as permissões de sistema
+      description: Só o administrador. Valem em todos os projetos, sem tornar a pessoa administradora. A troca entra nos logs.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissoes]
+              properties:
+                permissoes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [reserva.aprovar, reserva.cancelar, casa.configurar, auditoria.ver, funcionario.criar]
+      responses:
+        '200':
+          description: "{ message, globais }"
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Permissão fora do catálogo
   /funcionarios/{id}/situacao:
     patch:
       tags: [Funcionários]
       summary: Ativar/desativar funcionário
-      description: Requer perfil admin. Desativar revoga todos os tokens.
+      description: Só o administrador. Desativar derruba todas as sessões da pessoa.
       security:
         - bearerAuth: []
       parameters:
@@ -925,7 +982,7 @@ paths:
     post:
       tags: [Projetos]
       summary: Criar projeto
-      description: Requer perfil admin.
+      description: Qualquer pessoa ativa. A proposta de um pesquisador nasce `PENDENTE` e espera o administrador; a do administrador já nasce aprovada.
       security:
         - bearerAuth: []
       requestBody:
@@ -1051,7 +1108,7 @@ paths:
     delete:
       tags: [Projetos]
       summary: Excluir projeto
-      description: Requer perfil admin.
+      description: Só o administrador.
       security:
         - bearerAuth: []
       parameters:
@@ -1360,7 +1417,7 @@ paths:
     put:
       tags: [Equipe]
       summary: Definir permissões do membro
-      description: Requer perfil admin ou SU. Define permissões de CRUD dentro do projeto.
+      description: Só o administrador. Define as permissões da pessoa dentro do projeto.
       security:
         - bearerAuth: []
       parameters:
@@ -1437,7 +1494,7 @@ paths:
     post:
       tags: [Casas de Vegetação]
       summary: Cadastrar casa de vegetação
-      description: Requer perfil `CASA-I`.
+      description: Só o administrador, e só abaixo do limite de 51 espaços; com o parque completo responde 422.
       security:
         - bearerAuth: []
       requestBody:
@@ -1556,7 +1613,7 @@ paths:
     put:
       tags: [Casas de Vegetação]
       summary: Atualizar casa de vegetação
-      description: Requer perfil `CASA-A`.
+      description: Administrador, `casa.configurar` de sistema, ou `casa.configurar` num projeto com reserva nesta estufa.
       security:
         - bearerAuth: []
       parameters:
@@ -1610,7 +1667,7 @@ paths:
     delete:
       tags: [Casas de Vegetação]
       summary: Excluir casa de vegetação
-      description: Requer perfil `CASA-E`.
+      description: Só o administrador.
       security:
         - bearerAuth: []
       parameters:
@@ -1631,7 +1688,7 @@ paths:
     patch:
       tags: [Casas de Vegetação]
       summary: Alterar situação
-      description: "Requer perfil admin. Situações: ATIVA, RESERVADA, OCUPADA, MANUTENCAO e INATIVA. O motivo é opcional e some ao voltar para ATIVA."
+      description: "Mesma regra do PUT. Situações: ATIVA, RESERVADA, OCUPADA, MANUTENCAO e INATIVA. O motivo é opcional e some ao voltar para ATIVA."
       security:
         - bearerAuth: []
       parameters:
@@ -1663,6 +1720,26 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /casas-vegetacao/{id}/historico:
+    get:
+      tags: [Casas de Vegetação]
+      summary: Projetos que já passaram pela estufa
+      description: Reservas ativas e pendentes agrupadas por projeto, do mais recente para o mais antigo, com quando entrou, quando saiu e se está lá hoje.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "{ casa, resumo: { projetos, primeiro, ultimo }, projetos[]: { projeto_id, codigo, titulo, responsavel, entrou, saiu, atual } }"
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /casas-vegetacao/{id}/disponibilidade:
     get:
       tags: [Casas de Vegetação]
@@ -1748,7 +1825,7 @@ paths:
       tags: [Reservas]
       summary: Criar reserva
       description: |
-        Requer perfil `RESERVA-I` ou `reserva.criar` no projeto.
+        `reserva.criar` no projeto informado (aprovado); o administrador pode reservar sem projeto.
         Valida se a quantidade cabe na capacidade livre do período.
       security:
         - bearerAuth: []
@@ -1789,6 +1866,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Reserva'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /reservas/lote:
+    post:
+      tags: [Reservas]
+      summary: Pedir vasos e bancadas juntos
+      description: |
+        Mesma regra do POST /reservas.
+        Valida todas as unidades e grava os pedidos em uma única transação.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [casa_vegetacao_id, itens, data_inicio, data_fim, finalidade]
+              properties:
+                casa_vegetacao_id:
+                  type: integer
+                projeto_id:
+                  type: integer
+                  description: Obrigatório para não-admin
+                itens:
+                  type: array
+                  minItems: 1
+                  maxItems: 2
+                  items:
+                    type: object
+                    required: [unidade, quantidade]
+                    properties:
+                      unidade:
+                        type: string
+                        enum: [VASO, BANCADA]
+                      quantidade:
+                        type: integer
+                        minimum: 1
+                data_inicio:
+                  type: string
+                  format: date
+                data_fim:
+                  type: string
+                  format: date
+                finalidade:
+                  type: string
+                  maxLength: 255
+                obs:
+                  type: string
+      responses:
+        '201':
+          description: Reservas criadas juntas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reservas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reserva'
+                  message:
+                    type: string
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1889,7 +2034,7 @@ paths:
     post:
       tags: [Reservas]
       summary: Aprovar reserva
-      description: Requer perfil `RESERVA-A`. Revalida capacidade no momento da aprovação.
+      description: Administrador, ou `reserva.aprovar` (de sistema ou no projeto). Revalida a capacidade no momento da aprovação.
       security:
         - bearerAuth: []
       parameters:
@@ -2057,7 +2202,7 @@ paths:
     get:
       tags: [Auditoria]
       summary: Listar registros de auditoria
-      description: Requer perfil admin.
+      description: Administrador, ou `auditoria.ver` (de sistema, tudo; de projeto, só aquele projeto).
       security:
         - bearerAuth: []
       parameters:
@@ -2139,7 +2284,7 @@ paths:
     get:
       tags: [Painel]
       summary: Dados do painel administrativo
-      description: Retorna números consolidados do sistema. Requer perfil admin.
+      description: Números consolidados. O administrador vê o banco inteiro; os demais, os seus projetos.
       security:
         - bearerAuth: []
       responses:

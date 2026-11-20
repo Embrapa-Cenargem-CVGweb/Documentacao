@@ -31,8 +31,8 @@ A tabela `projetos` carrega, além do andamento da pesquisa
 | `aprovado_em` | `timestamp`, nulo | Quando foi aceita |
 | `motivo_recusa` | `varchar(255)`, nulo | Por que não foi aceita |
 
-O padrão `APROVADO` cobre os projetos que já existiam: foram criados pelo
-administrador, o único que podia criá-los antes desta mudança.
+O padrão é `APROVADO`: projeto criado pelo administrador já nasce aprovado;
+proposta de pesquisador nasce `PENDENTE`.
 
 Migration: `2026_11_12_000001_add_aprovacao_to_projetos_table.php`.
 
@@ -40,15 +40,11 @@ Migration: `2026_11_12_000001_add_aprovacao_to_projetos_table.php`.
 
 ## 1. Visão geral
 
-O CVGWeb utiliza **MySQL 8** como banco relacional, gerenciado pelo Eloquent ORM
+O CVGWeb utiliza **MySQL 8** (ou MariaDB 10.4+) como banco relacional, gerenciado pelo Eloquent ORM
 do Laravel 12. Toda a estrutura é criada e versionada via migrations.
 
-O arquivo `cvgweb-schema.sql` na raiz do repositório de orquestração contém o
-schema completo gerado a partir das migrations, para consulta e importação
-manual. **Nunca edite este arquivo à mão** — rode
-`bash scripts/exportar-schema.sh` na raiz (com os containers no ar) para
-regerar. O script não lê o banco em uso: cria um banco temporário, roda
-migrations e seeders nele, exporta e apaga.
+Para ver o schema inteiro num lugar só, rode as migrations num banco vazio e
+exporte com `mysqldump --no-data`.
 
 ### Números atuais
 
@@ -67,7 +63,7 @@ migrations e seeders nele, exporta e apaga.
 
 | Parâmetro | Valor |
 | --- | --- |
-| SGBD | MySQL 8.0+ |
+| SGBD | MySQL 8.0+ ou MariaDB 10.4+ (testados: MySQL 8.4, MySQL 8.0, MariaDB 10.4) |
 | Charset | `utf8mb4` |
 | Collation | `utf8mb4_unicode_ci` |
 | Engine | InnoDB |
@@ -84,6 +80,37 @@ DB_DATABASE=embrapa_cvg
 DB_USERNAME=cvgweb
 DB_PASSWORD=cvgweb
 ```
+
+### Fora do Docker (banco instalado na máquina)
+
+O banco funciona fora do Docker. Bancos testados de ponta a ponta: MySQL 8.4
+instalado no Windows (o do Laragon), MySQL 8.0 e MariaDB 10.4 (a versão do
+XAMPP). Em cada um:
+
+| Etapa | MySQL 8.4 (Windows) | MySQL 8.0 | MariaDB 10.4 |
+| :--- | :---: | :---: | :---: |
+| `php artisan migrate --seed` num banco vazio (adm no id 0, primeira pessoa no id 1) | ✅ | ✅ | ✅ |
+| `DemoSeeder` duas vezes seguidas, sem duplicar | ✅ | ✅ | ✅ |
+| Suíte de testes inteira **contra o banco** (`phpunit.mysql.xml`) | ✅ | ✅ | ✅ |
+| API servida pelo PHP do Windows, todas as rotas `GET` respondendo | ✅ | — | — |
+
+MySQL 5.7 e anteriores não são suportados (fora de suporte desde 2023).
+
+**Montar o banco:** `php artisan migrate --seed`, o mesmo caminho do Docker.
+Num banco em uso, `php artisan migrate` aplica só o que falta.
+
+**O que pode pegar quem instala na mão**
+
+| Situação | O que acontece | O que fazer |
+| :--- | :--- | :--- |
+| Banco criado sem charset | Tabelas novas saem em `utf8mb4` de qualquer jeito (o Laravel pede), mas o padrão do banco fica errado | Crie com `CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` |
+| Acentos aparecem como `Conclu�do` no terminal do Windows | Só exibição: o console usa outra codificação. O dado está certo (`HEX(nome)` mostra `C3AD`) | `mysql --default-character-set=utf8mb4 ...` |
+| Super usuário no id 0 | O MySQL trata `0` como "gere o próximo" a menos que `NO_AUTO_VALUE_ON_ZERO` esteja ligado | Nada: o Laravel liga o modo em cada conexão (`config/database.php`). Só não cadastre funcionários por outra ferramenta com `id = 0` |
+| `sql_mode` do servidor diferente | O Laravel define o próprio `sql_mode` (estrito) por conexão; o do servidor não vale para a aplicação | Nada |
+| `lower_case_table_names = 1` (padrão do Windows) | Todas as tabelas já têm nome minúsculo | Nada |
+| Fuso do servidor (`SYSTEM` = Brasília no Windows, UTC no Docker) | Leitura e escrita passam pelo mesmo servidor, então os horários batem. O `mysqldump` grava em UTC, então levar um backup do Docker para o banco instalado (ou o contrário) também funciona | Nada |
+| Usuário `root` sem senha (XAMPP) | Funciona, mas é inseguro | Crie o usuário `cvgweb` com senha, como acima |
+| MySQL da máquina e do Docker ao mesmo tempo | O instalado usa a 3306; o do Docker, a 3307 | Nada; só aponte `DB_PORT` para o certo |
 
 ---
 
@@ -171,19 +198,20 @@ mas ainda não definiu a senha via convite.
 > **O super usuário tem o id 0.** Ele não conta como usuário: a primeira
 > pessoa cadastrada é a 1, a segunda a 2. Para o MySQL aceitar gravar o 0
 > numa coluna auto_increment, a conexão usa o modo `NO_AUTO_VALUE_ON_ZERO`
-> (`config/database.php`), e o `cvgweb-schema.sql` também. A migration
-> `super_usuario_no_id_zero` move o super usuário de um banco antigo para o 0
-> e renumera os demais, atualizando todas as tabelas que apontam para eles.
+> (`config/database.php`). A migration
+> `super_usuario_no_id_zero` garante o super usuário no id 0 num banco que o
+> tenha em outro id, renumerando os demais e todas as tabelas que apontam
+> para eles.
 
 | Coluna | Tipo | Restrições | Descrição |
 | --- | --- | --- | --- |
 | `id` | bigint unsigned | PK, auto_increment | 0 = super usuário |
 | `nome` | varchar(150) | NOT NULL | Nome completo |
 | `matricula` | varchar(20) | UNIQUE, nullable | Identificador interno (rótulo na tela) |
-| `email` | varchar(150) | UNIQUE, NOT NULL | E-mail — único identificador de entrada (o `nick` foi removido em `2026_11_12_000002`) |
+| `email` | varchar(150) | UNIQUE, NOT NULL | E-mail — único identificador de entrada |
 | `email_verified_at` | timestamp | nullable | Data de verificação |
 | `tipo` | varchar(20) | NOT NULL, default `FUNCIONARIO` | `SU`, `ADMIN`, `FUNCIONARIO` |
-| `perfil` | varchar(255) | NOT NULL | Tokens de permissão: `/SU/`, `/FUNCIONARIO-I/A/E/`, `/RESERVA-I/A/`, `/CASA-I/A/E/` |
+| `perfil` | varchar(255) | NOT NULL | `/SU/` para o administrador; `/FUNCIONARIO-C/RESERVA-I/` para os demais. Só o `/SU/` é consultado |
 | `password` | varchar(255) | nullable | Hash bcrypt (12 rounds). Nulo = aguardando convite |
 | `convite_enviado_em` | timestamp | nullable | Data do último convite enviado |
 | `senha_definida_em` | timestamp | nullable | Data em que a senha foi definida |
@@ -380,7 +408,7 @@ equipe do projeto. Ao excluir o registro, o arquivo sai do disco junto.
 
 Também fazem parte do domínio `convites_projeto` (convites para entrar na
 equipe) e `notificacoes_lidas` (o que cada pessoa já leu no sino); a estrutura
-exata de todas está no `cvgweb-schema.sql`.
+exata de todas está nas migrations.
 
 ---
 
@@ -438,8 +466,31 @@ vasos medidas em campo. Distribuídas pelos setores Norte, Leste, Central e Sul.
 
 > **Troque a senha no primeiro acesso.** O seeder roda a cada subida do
 > container, mas só **cria** o super usuário quando ele não existe: uma senha
-> trocada pela tela não volta ao padrão num reinício. (Até 13/11/2026 ele
-> regravava a senha padrão a cada boot — ver a seção de segurança.)
+> trocada pela tela não volta ao padrão num reinício.
+
+### Dados fictícios (`DemoSeeder`) — sob demanda
+
+**Não** roda no `migrate --seed` nem no boot do container. Carrega um cenário
+completo para apresentar ou testar as telas:
+
+```bash
+php artisan db:seed --class=DemoSeeder
+```
+
+| Tabela | O que recebe |
+| --- | --- |
+| `funcionarios` | 25 contas `@exemplo.test` com matrícula `DEMO0001`…, último acesso e cargos variados (nenhuma com cargo Administrador, que é o adm); 2 com `permissoes_globais`; 1 desativada; 2 sem senha (convite pendente e convite que falhou) |
+| `projetos` / `colaboradores_projeto` | 7 projetos (aprovados, pendente, recusado, suspenso, concluído) com equipes, papéis e funções |
+| `casas_vegetacao` | Ficha completa das 51: tipo, setor, área, temperatura, vasos de 5/10/20 cm, situação e motivo |
+| `reservas` | 54: ativas, futuras, históricas, pendentes e canceladas, em vasos e bancadas |
+| `projeto_documentos` | 8 itens, com arquivos de exemplo no disco privado |
+| `convites_projeto` | 5 convites: 2 pendentes, 1 aceito, 1 recusado, 1 cancelado |
+| `convites_acesso` | 2 convites de primeiro acesso (um enviado, um com erro de envio) |
+| `auditorias` | ~50 eventos em 30 dias, com IP da faixa de documentação `203.0.113.x` |
+
+É idempotente (identifica tudo por e-mail, código ou título) e não apaga dados
+reais. Com `APP_ENV=production` ele se recusa a rodar. Contas e senhas: README
+do back-end.
 
 ---
 

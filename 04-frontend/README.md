@@ -29,10 +29,9 @@ Como rodar: [README do repositório](../../Embrapa-frontend/README.md)
 index.html              Marcação completa; o sprite de ícones entra inline
 assets/
 ├── MapEstufa.webp      Foto aérea do campus (fallback .jpg)
-├── icons.svg           Sprite dos ícones — fonte do que é injetado no HTML
+├── embrapa.png         Logotipo
+├── favicon.png         Ícone da aba
 └── fonts/              IBM Plex Sans e Mono, subconjunto latin, .woff2
-scripts/
-└── build-icons.mjs     Injeta assets/icons.svg no index.html
 styles/
 ├── tokens.css          Cor, tipografia, espaço, raio, sombra e motion
 ├── base.css            @font-face, reset, foco, utilidades de acessibilidade
@@ -41,36 +40,45 @@ styles/
 ├── telas.css           Telas de listagem (reservas, projetos, usuários, logs)
 ├── login.css           Tela de entrada
 ├── map.css             Foto, marcadores, legenda e ficha do espaço
+├── calendario.css      Calendário (semana e mês), mini calendário e cabeçalho
 ├── admin.css           Tela de espaços
 └── chat.css            Assistente
 src/
 ├── main.ts             Ponto de entrada
-├── app.ts              Navegação, menu da conta, registro das ações
+├── app.ts              Navegação, menu da conta, registro das ações, atualização automática
 ├── types.ts            Tipos de domínio
+├── env.d.ts            Tipos das variáveis VITE_
 ├── lib/
 │   ├── actions.ts      Delegação de eventos por data-action
+│   ├── ajuda.ts        Botão "?" e texto de ajuda de cada modal
 │   ├── bus.ts          Aviso de mudança nos dados
 │   ├── dom.ts          Atalhos de DOM
 │   ├── format.ts       Status, datas e plurais
 │   ├── html.ts         Template de HTML com escape automático
 │   ├── modal.ts        Modais acessíveis e diálogo de confirmação
 │   ├── navegacao.ts    Troca de seção e estado da rota
-│   ├── senha.ts        Medidor e regras de senha
+│   ├── senha.ts        Mostrar/esconder senha
 │   ├── telas.ts        Casca comum das listagens
 │   └── toast.ts        Avisos temporários
 ├── data/
-│   ├── estufas.ts      Leitura do parque a partir da API
+│   ├── contexto.ts     Permissões da pessoa logada (o que ela pode em cada projeto)
+│   ├── estufas.ts      Leitura do parque e da ocupação a partir da API
 │   └── hotspots.ts     Coordenadas dos marcadores sobre a foto
 ├── services/
 │   ├── api.ts          Todas as chamadas à API Laravel
 │   └── llm.ts          Chamada ao assistente (via back-end)
 └── views/
-    ├── login.ts        Entrada
-    ├── acesso.ts       Definir senha pelo link do convite
+    ├── login.ts        Entrada e sessão
+    ├── acesso.ts       "Esqueci minha senha" e definir senha pelo link
     ├── mapa.ts         Foto aérea, marcadores e ficha do espaço
-    ├── reservas.ts     Pedidos, aprovação e histórico
-    ├── projetos.ts     Projetos, equipe e permissões
-    ├── admin.ts        Espaços
+    ├── calendario.ts   Calendário de ocupação (semana e mês)
+    ├── reservas.ts     Pedido, edição e cancelamento de reserva
+    ├── projetos.ts     Projetos, equipe e documentos
+    ├── convites.ts     Convites para entrar em projetos
+    ├── permissoes.ts   Modal de permissões de um usuário
+    ├── avisos.ts       Sino de avisos
+    ├── historico-estufa.ts  Projetos que já passaram por uma estufa
+    ├── admin.ts        Espaços, fila de reservas e usuários
     ├── auditoria.ts    Logs
     ├── chat.ts         Assistente
     └── falha.ts        Erro de carregamento
@@ -83,16 +91,15 @@ src/
 | Seção | View | O que faz |
 | :--- | :--- | :--- |
 | **Mapa** | `mapa.ts` | Foto aérea com um marcador por estufa; clique abre a ficha com situação, ocupação de hoje, o dia mais cheio pela frente, temperatura, vasos por tamanho, responsável e período. O filtro esconde por situação e por espaço livre ("preciso de 6 vasos") |
-| **Calendário** | `calendario.ts` | No jeito do Teams: linha do tempo de 1 ou 2 semanas com uma faixa por estufa e as reservas como barras; visão de mês de uma estufa; cartão da reserva; "Como ler" num modal |
+| **Calendário** | `calendario.ts` | No jeito do Teams: linha do tempo semanal com uma faixa por estufa e as reservas como barras; visão de mês de uma estufa; cartão da reserva; "Como ler" num modal |
 | **Reservas** | `admin.ts` / `reservas.ts` | Fila de quem aprova e cancela. O formulário de reserva abre pelo mapa e pelo calendário |
 | **Projetos** | `projetos.ts` | Projetos, equipe, líder, e a ficha do projeto com documentos e anotações da pesquisa |
 | **Usuários** | `admin.ts` / `permissoes.ts` | Cadastro, convite, situação e o modal de permissões (chaves liga/desliga, um único salvar) |
-| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação: capacidade, vasos por tamanho, temperatura, situação e motivo |
+| **Espaços** | `admin.ts` | Alteração das 51 casas de vegetação: capacidade, vasos por tamanho, temperatura, situação e motivo. A tabela nunca rola de lado: colunas de largura fixa com texto que quebra (acima de 1200px), cartões em grade (notebook e tablet) e um cartão por linha (celular) — `styles/admin.css`, bloco "Tabela de espaços" |
 | **Logs** | `auditoria.ts` | Auditoria de tudo que acontece, com filtros |
 | **Entrada** | `login.ts`, `acesso.ts` | Login, "esqueci minha senha" e criação da primeira senha pelo link |
 
-Reservas, Projetos, Usuários e Logs são seções próprias do menu — saíram dos
-modais. O botão do assistente aparece **só na tela do mapa**.
+Reservas, Projetos, Usuários e Logs são seções próprias do menu. O botão do assistente aparece **só na tela do mapa**.
 
 ### Quem vê o quê
 
@@ -132,8 +139,8 @@ propósito usa `raw()`.
 
 **Ícones.** Lucide (licença ISC), só o subconjunto usado, como sprite inline.
 Para acrescentar um: pegue o SVG em [lucide.dev](https://lucide.dev), cole um
-`<symbol id="i-nome" …>` em `assets/icons.svg` e rode `npm run icons` — o
-script avisa se algum `<use>` aponta para símbolo inexistente.
+`<symbol id="i-nome" viewBox="0 0 24 24">` dentro do sprite, no começo do
+`index.html` (entre `<!-- icons:start -->` e `<!-- icons:end -->`).
 
 **Tipografia.** IBM Plex Sans e Mono auto-hospedadas em `.woff2`. Nenhuma
 requisição a CDN: o app funciona offline e na rede interna.
@@ -183,9 +190,9 @@ calendário, e é com ela que o mapa pinta os marcadores e conta os vasos — a
 ocupação é a mesma para todo mundo.
 
 **Cores do mapa.** Verde enquanto sobra vaga na unidade principal; laranja
-(ocupada) quando ela lotou só com reservas aprovadas; azul (reservada) quando
-lotou contando pedidos que aguardam aprovação; vermelho para manutenção e
-inativa.
+(ocupada) quando ela lotou com reservas aprovadas; azul (reservada) quando há
+pelo menos um pedido aguardando aprovação, mesmo sobrando vaga — para chamar a
+atenção da administração; vermelho para manutenção e inativa.
 
 **Ajuda dos modais.** `lib/ajuda.ts` guarda um texto curto por modal e coloca
 o botão "?" no cabeçalho de cada um; o clique abre a explicação por cima, sem
@@ -226,8 +233,6 @@ npm run dev         # desenvolvimento em http://localhost:5173
 npm run typecheck   # só a checagem de tipos
 npm run build       # typecheck + pacote de produção em dist/
 npm run preview     # serve o dist/ para conferir o pacote
-npm run icons       # regenera o sprite de ícones dentro do index.html
-npm run test:e2e    # Playwright (exige a API no ar) — ver 8. Testes
 ```
 
 > Toda variável `VITE_` é embutida no JavaScript publicado e fica legível para

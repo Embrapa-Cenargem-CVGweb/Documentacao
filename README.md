@@ -45,12 +45,11 @@ que é detalhe técnico mora aqui.
 | **05** | [Banco de dados](05-banco-de-dados/README.md) | Schema MySQL, tabelas, relacionamentos, índices e dados iniciais |
 | **06** | [API](06-api/README.md) | Referência de todos os endpoints + [`swagger.yaml`](06-api/swagger.yaml) (OpenAPI 3.0.3) |
 | **07** | [Segurança](07-seguranca/README.md) | Autenticação, autorização, rate limiting, cabeçalhos, XSS, auditoria e backlog |
-| **08** | [Testes](08-testes/README.md) | Suíte E2E com Playwright, cenários automatizados e testes manuais |
+| **08** | [Testes](08-testes/README.md) | Testes da API com PHPUnit (SQLite e MySQL) e testes manuais |
 | **09** | [Operação](09-operacao/README.md) | Docker, variáveis de ambiente, e-mail, backup e problemas comuns |
 
 Complementos:
 
-- [Migração do legado](03-backend/migracao-do-legado.md) — o que veio da aplicação PHP antiga e onde cada regra ficou
 - [`arquivo/`](arquivo/) — documentos históricos em PDF, mantidos só para referência
 
 ---
@@ -68,14 +67,13 @@ Documentacao/
 ├── 02-arquitetura/README.md     Containers, stack e decisões
 ├── 03-backend/
 │   ├── README.md                Camadas, regras de negócio e autorização
-│   └── migracao-do-legado.md    Mapa regra-a-regra do sistema PHP antigo
 ├── 04-frontend/README.md        Estrutura, telas e convenções
 ├── 05-banco-de-dados/README.md  Schema, tabelas e relacionamentos
 ├── 06-api/
 │   ├── README.md                Referência dos endpoints
 │   └── swagger.yaml             Especificação OpenAPI 3.0.3
 ├── 07-seguranca/README.md       Medidas implementadas e backlog
-├── 08-testes/README.md          Playwright E2E e testes manuais
+├── 08-testes/README.md          PHPUnit e testes manuais
 ├── 09-operacao/README.md        Docker, env, e-mail e troubleshooting
 ├── _assets/                     Imagens usadas pelos documentos
 └── arquivo/                     PDFs históricos (não use como referência)
