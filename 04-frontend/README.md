@@ -5,7 +5,7 @@ de reserva e administração de espaços, reservas, projetos, usuários e logs.
 
 HTML, CSS e TypeScript **sem framework**, empacotados com Vite.
 
-Repositório: [Embrapa-frontend](https://github.com/Embrapa-Cenargem-Dashboard-Interativo/Embrapa-frontend) ·
+Repositório: [Embrapa-frontend](https://github.com/Embrapa-Cenargem-CVGweb/Embrapa-frontend) ·
 Como rodar: [README do repositório](../../Embrapa-frontend/README.md)
 
 ---

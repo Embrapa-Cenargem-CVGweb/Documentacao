@@ -15,7 +15,7 @@ orquestração clona os outros dois dentro de si:
 | :--- | :--- | :--- |
 | [embrapa](https://github.com/Embrapa-Cenargem-CVGweb) (orquestração) | raiz | `docker-compose.yml`, `.env`, README de instalação |
 | [Embrapa-backend](https://github.com/Embrapa-Cenargem-CVGweb/Embrapa-backend) | `Embrapa-backend/` | API Laravel 12 + Sanctum |
-| [Embrapa-frontend](https://github.com/Embrapa-Cenargem-Dashboard-Interativo/Embrapa-frontend) | `Embrapa-frontend/` | Interface TypeScript + Vite |
+| [Embrapa-frontend](https://github.com/Embrapa-Cenargem-CVGweb/Embrapa-frontend) | `Embrapa-frontend/` | Interface TypeScript + Vite |
 | [Documentacao](https://github.com/Embrapa-Cenargem-CVGweb/Documentacao) | `Documentacao/` | Esta documentação |
 
 > As pastas precisam ter exatamente esses nomes: é assim que o
