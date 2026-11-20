@@ -41,7 +41,7 @@ No primeiro boot a API instala as dependências do Composer, roda as migrations
 e os seeders (cargos, status de projeto, as 51 casas de vegetação e o super
 usuário); o front roda `npm install`.
 
-**Primeiro acesso:** usuário `SU`, senha `super123` — e troque em seguida. É a
+**Primeiro acesso:** e-mail `admin@cvgweb.local`, senha `supersu` — e troque em seguida. É a
 única conta criada pelo seeder; as demais são cadastradas pela tela e recebem
 link de convite por e-mail.
 
@@ -63,8 +63,11 @@ link de convite por e-mail.
 | :--- | :--- |
 | `APP_KEY` | Chave de criptografia do Laravel. **Obrigatória** — sem ela o login falha ao assinar o token |
 | `APP_DEBUG` | `false` em produção. Nunca `true` com dado real |
+| `APP_URL` | Endereço público da API (padrão `http://localhost:8000`) |
+| `COMPOSE_PROJECT_NAME` | Nome do projeto no Docker (`cvgweb`). Não mude: os contêineres e volumes são achados por ele |
 | `APP_TIMEZONE` | Fuso das datas da API (padrão `America/Sao_Paulo`) |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | Acesso ao MySQL |
+| `DB_ROOT_PASSWORD` | Senha do root do MySQL do contêiner. Troque fora do desenvolvimento |
 | `DB_PORT_HOST` | Porta do MySQL no host (3307, para não brigar com um MySQL ou XAMPP já instalado) |
 | `BACKEND_PORT` / `FRONTEND_PORT` | Portas publicadas da API e do front |
 | `FRONTEND_URL` | Origem liberada no CORS da API |
@@ -75,7 +78,8 @@ link de convite por e-mail.
 | `GROQ_API_KEY` / `GROQ_MODEL` / `GROQ_LIMITE_POR_MINUTO` | Assistente. **Só no back-end** |
 | `CVGWEB_INTERVALO_REENVIO` | Segundos de espera antes de reenviar convite para a mesma pessoa (padrão 60) |
 | `CVGWEB_LINK_MANUAL` | Quando o e-mail não sai, devolve o link ao administrador na resposta |
-| `CVGWEB_LIMITE_ESPACOS` | Limite de casas de vegetação cadastradas (padrão 50) |
+| `CVGWEB_LIMITE_ESPACOS` | Limite de casas de vegetação cadastradas (padrão 51) |
+| `CVGWEB_SU_EMAIL` / `CVGWEB_SU_SENHA` | E-mail e senha com que o super usuário é **criado** no primeiro boot (padrão `admin@cvgweb.local` / `supersu`). Não alteram uma conta que já existe: depois, a senha se troca pela tela |
 
 > Gere a `APP_KEY` com
 > `docker compose run --rm backend php artisan key:generate --show` e cole no
@@ -144,8 +148,8 @@ O caminho é um remetente de domínio verificado da Embrapa
 API. O código traz um transport próprio para a Resend
 (`app/Mail/Transport/ResendTransport.php`), usável com `MAIL_MAILER=resend` e
 `RESEND_API_KEY` — mas, **sem domínio verificado**, o remetente
-`onboarding@resend.dev` só entrega para o e-mail da própria conta Resend. Foi
-por isso que o desenvolvimento passou a usar SMTP.
+`onboarding@resend.dev` só entrega para o e-mail da própria conta Resend — por
+isso, em desenvolvimento, use SMTP.
 
 Teste o envio sem mexer na tela:
 
@@ -230,12 +234,34 @@ leva o conteúdo.
 
 ## Schema do banco
 
-A fonte da verdade são as **migrations**, em
-`Embrapa-backend/database/migrations`. O `cvgweb-schema.sql` da raiz é um
-artefato **derivado**, para quem quer ver o schema inteiro num lugar só —
-nunca editar à mão. Mude a migration e regere o arquivo.
+O schema é criado e versionado pelas **migrations**, em
+`Embrapa-backend/database/migrations`. Para mudar o banco, crie uma migration
+nova; o `php artisan migrate` (que o contêiner roda a cada boot) aplica só o
+que falta.
 
-Estrutura detalhada: [5. Banco de dados](../05-banco-de-dados/README.md).
+### Upload de documentos
+
+Os documentos dos projetos ficam em
+`Embrapa-backend/storage/app/private/projetos/`, fora da pasta pública —
+inclua essa pasta no backup. A API aceita até 10 MB por arquivo; a imagem do
+back-end sobe com `upload_max_filesize=12M` e `post_max_size=16M`
+(`Dockerfile`). Depois de atualizar o código, reconstrua a imagem para o
+limite valer: `docker compose up -d --build backend`.
+
+Estrutura detalhada: [5. Banco de dados](../05-banco-de-dados/README.md),
+incluindo os bancos testados fora do Docker e o que muda neles.
+
+### Dados fictícios
+
+Para apresentar o sistema "cheio" (25 contas fictícias, 7 projetos, 54 reservas,
+documentos, convites e 30 dias de logs):
+
+```bash
+docker compose exec backend php artisan db:seed --class=DemoSeeder
+```
+
+Não roda sozinho no boot e se recusa com `APP_ENV=production`. Contas e
+senhas no README do back-end.
 
 ---
 
@@ -250,4 +276,10 @@ Estrutura detalhada: [5. Banco de dados](../05-banco-de-dados/README.md).
 | O convite de acesso não chega | `MAIL_MAILER` ainda é `log` (o link está no `laravel.log`), ou o remetente não tem domínio verificado |
 | O cadastro de usuário fica "travado" ao salvar | A porta SMTP está bloqueada na rede. O usuário **foi** cadastrado; confira `Connection timed out` no `laravel.log`. Use `MAIL_TIMEOUT=5`, a porta 465 ou `MAIL_MAILER=log` |
 | Gmail recusa o envio com erro de autenticação | A senha precisa ser uma **senha de app**, não a senha da conta |
+| **Sem Docker:** `SQLSTATE[HY000] [1045] Access denied` | Usuário/senha do `.env` não batem com o MySQL instalado, ou o usuário foi criado só para `'localhost'` e o `.env` usa `127.0.0.1` (ou o contrário). Crie para os dois ou troque o `DB_HOST` |
+| **Sem Docker:** `SQLSTATE[HY000] [2002]` | MySQL instalado não está rodando, ou a porta é outra (o do Docker é 3307, o instalado costuma ser 3306) |
+| **Sem Docker:** acentos viram `Conclu�do` no terminal | Só o console do Windows. O dado está certo; use `mysql --default-character-set=utf8mb4` |
+| **Sem Docker:** o super usuário foi parar no id 1 | O banco foi montado por uma ferramenta que não ligou `NO_AUTO_VALUE_ON_ZERO`. Monte o banco com `php artisan migrate --seed`; a migration `2026_11_13_000001` coloca o adm no id 0 num banco que o tenha em outro id |
+| **Sem Docker:** toda tela demora quase meio segundo para responder | OPcache desligado: o PHP recompila o Laravel a cada chamada. No `php.ini`, ligue `zend_extension=opcache`, `opcache.enable=1` e `opcache.enable_cli=1` (com ele cada chamada cai para centésimos de segundo) |
+| **Sem Docker:** a API fica lenta com várias telas abertas | No Windows o `php artisan serve` atende uma requisição por vez (`PHP_CLI_SERVER_WORKERS` só funciona em Linux/macOS). Use o Docker, ou Nginx/Apache + PHP-FPM |
 | O banco "sumiu" depois de renomear a pasta | Os volumes têm nome fixo (`cvgweb_*`). Confira se o `.env` ainda tem `COMPOSE_PROJECT_NAME=cvgweb` |

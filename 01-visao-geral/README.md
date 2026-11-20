@@ -1,18 +1,18 @@
 # 1. Visão geral
 
 O **CVGWeb** é o Sistema de Gestão de Campos Experimentais da **Embrapa
-Cenargen**. Ele substitui o controle manual das casas de vegetação (estufas) do
-campus por um sistema web onde a equipe enxerga o parque inteiro sobre a foto
-aérea, pede reserva de capacidade por período e a administração aprova.
+Cenargen**: um sistema web para controlar as casas de vegetação (estufas) do
+campus, onde a equipe enxerga o parque inteiro sobre a foto aérea, pede
+reserva de capacidade por período e a administração aprova.
 
 ---
 
 ## 1.1 O problema
 
-O parque do Cenargen tem **51 casas de vegetação**. Antes do CVGWeb, saber quem
-estava usando qual espaço, até quando e para qual projeto dependia de planilha,
-e-mail e conversa de corredor. Dois pesquisadores podiam combinar o mesmo
-espaço sem saber, e não havia registro de quem autorizou o quê.
+O parque do Cenargen tem **51 casas de vegetação**, divididas entre muitos
+projetos de pesquisa. É preciso saber, num lugar só, quem está usando qual
+espaço, até quando e para qual projeto; evitar que dois pesquisadores contem
+com o mesmo espaço no mesmo período; e registrar quem autorizou o quê.
 
 ## 1.2 A proposta
 
@@ -77,7 +77,8 @@ Administração cadastra a pessoa → convite por e-mail → ela cria a senha
 | **Capacidade total** | Quantas unidades a estufa comporta |
 | **Reserva** | Pedido de uma quantidade de unidades, num período, para um projeto |
 | **Pendente / Ativa / Cancelada** | Situações da reserva: aguardando aprovação, aprovada, encerrada ou recusada |
-| **Perfil** | Permissão global do usuário no sistema (`/SU/`, `/FUNCIONARIO-I/A/E/`) |
+| **Administrador** | O super usuário (cargo Administrador): pode tudo no sistema |
+| **Permissão de sistema** | Permissão que vale em todos os projetos sem tornar a pessoa administradora |
 | **Permissão por projeto** | Autorização de CRUD válida apenas dentro de um projeto |
 | **Convite de acesso** | Token com prazo de 48 h enviado por e-mail para a pessoa criar a própria senha |
 | **Auditoria / Log** | Registro imutável de uma ação do usuário |
@@ -100,4 +101,4 @@ Versões anteriores em PDF, mantidas só para referência histórica, estão em
 ## 1.7 Contexto acadêmico
 
 O CVGWeb é o projeto integrador do curso de Ciência da Computação do **CEUB**,
-desenvolvido em parceria com a Embrapa Cenargen e entregue por sprints.
+desenvolvido em parceria com a Embrapa Cenargen.

@@ -50,29 +50,30 @@ nada de validação em model.
 app/
 ├── Console/Commands/          4 comandos de operação (senha, limpeza, e-mail)
 ├── Http/
-│   ├── Controllers/Api/       14 controllers REST
+│   ├── Controllers/Api/       18 controllers REST
 │   ├── Middleware/
-│   │   ├── SecurityHeaders    CSP, X-Frame-Options, nosniff, Referrer-Policy
-│   │   └── VerificaPerfil     Autorização por perfil do sistema
+│   │   └── SecurityHeaders    nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy, HSTS
 │   └── Requests/              8 Form Requests (Store/Update × 4 domínios)
 ├── Mail/
 │   ├── LinkDeAcessoMail       E-mail de convite e de nova senha
+│   ├── ConviteProjetoMail     E-mail de convite para entrar num projeto
 │   └── Transport/             Transport próprio sobre a API HTTP da Resend (alternativa ao SMTP)
 ├── Models/
 │   ├── Concerns/Auditavel     Trait que registra toda escrita na auditoria
-│   └── …                      10 modelos Eloquent
+│   └── …                      11 modelos Eloquent
 ├── Policies/                  5 policies
-├── Providers/
+├── Providers/                 Gate::before do administrador e limites de tentativa
 ├── Services/
 │   ├── Acesso/                Geração e envio do link de acesso
 │   ├── Assistente/            Cliente Groq, contexto e tratamento de erro
-│   └── ReservaService         A regra central de capacidade por período
+│   ├── Notificacoes/          Avisos do sino, calculados na hora
+│   ├── ReservaService         A regra central de capacidade por período
+│   └── TrocaDeLider           Passa a liderança ao desativar quem lidera
 └── Support/
-    ├── Matricula              Formatação da matrícula Embrapa
-    ├── Permissoes             Catálogo de permissões por projeto
+    ├── Permissoes             Catálogo de permissões (de projeto e de sistema)
     └── SanitizaBusca          Escape de wildcards em buscas LIKE
 
-bootstrap/app.php              Middleware, aliases, rate limiters e exceções
+bootstrap/app.php              Middleware, rotas e tratamento de exceções
 config/cvgweb.php              Regras do CVGWeb que não são segredo
 database/
 ├── migrations/                Fonte da verdade do schema
@@ -95,8 +96,12 @@ routes/api.php                 Todas as rotas da API
 | `StatusProjetoController` | Lista de status de projeto |
 | `EquipeProjetoController` | Equipe do projeto e permissões por membro |
 | `PermissaoController` | Catálogo de permissões concedíveis |
-| `CasaVegetacaoController` | CRUD dos espaços, tipos, situação e disponibilidade |
-| `ReservaController` | CRUD de reservas, aprovação e cancelamento |
+| `CasaVegetacaoController` | Cadastro dos espaços, tipos, situação, disponibilidade e histórico |
+| `CalendarioController` | Ocupação geral de todas as estufas num intervalo |
+| `ReservaController` | Reservas (uma ou vasos e bancadas num envio só), aprovação e cancelamento |
+| `ProjetoDocumentoController` | Documentos e anotações de um projeto |
+| `ConviteProjetoController` | Convites para entrar num projeto: enviar, aceitar, recusar, cancelar |
+| `NotificacaoController` | Sino de avisos e marcar como lido |
 | `AuditoriaController` | Consulta dos logs e dos filtros disponíveis |
 | `PainelController` | Números do painel administrativo |
 | `AssistenteController` | Status e resposta do assistente |
@@ -115,6 +120,8 @@ routes/api.php                 Todas as rotas da API
 | `CasaVegetacao` | `casas_vegetacao` | Espaço experimental, com unidade e capacidade |
 | `Reserva` | `reservas` | Quantidade reservada num período, com aprovação |
 | `ConviteAcesso` | `convites_acesso` | Token de convite/redefinição e o estado do envio |
+| `ConviteProjeto` | `convites_projeto` | Convite para entrar num projeto e a resposta |
+| `ProjetoDocumento` | `projeto_documentos` | Documento ou anotação da equipe, com arquivo opcional |
 | `Auditoria` | `auditorias` | Registro imutável de uma ação |
 
 Colunas, índices, chaves e o diagrama entidade-relacionamento estão em
@@ -195,10 +202,26 @@ a outra, o que ela pode fazer **naquele projeto**.
 
 ### 1. Perfil do sistema
 
-Herdado do sistema legado e preservado: tokens no campo `perfil` do
-funcionário (`/SU/`, `/FUNCIONARIO-I/A/E/`), verificados pelo middleware
-`perfil:` e por `Funcionario::temPerfil()`. O super usuário zera as demais
-permissões porque já pode tudo.
+O **administrador** é o funcionário com `tipo = 'SU'` (perfil `/SU/`) — e, na
+tela, quem tem o **cargo Administrador**: dar ou tirar esse cargo muda quem é
+adm, e só o adm faz isso. Ele passa em tudo pelo `Gate::before`.
+
+Abaixo do adm, as **permissões de sistema** (`permissoes_globais`) valem em
+todos os projetos: `reserva.aprovar`, `reserva.cancelar`, `casa.configurar`,
+`auditoria.ver`, `funcionario.criar`. Só o adm concede.
+
+O campo `perfil` guarda tokens no formato `/ESCOPO/`; o único que as regras
+consultam é o `/SU/`.
+
+**Cadastro de pessoas — o que cada um mexe:**
+
+| Campo | Quem altera |
+| :--- | :--- |
+| Nome, matrícula, cargo (menos Administrador), observações | Adm, ou quem tem `funcionario.editar` num projeto em comum |
+| **E-mail** (é o login e o destino do "esqueci a senha") | **Só o adm** |
+| Senha | O adm, ou a própria pessoa — e as outras sessões dela caem |
+| Ativo / inativo, cargo Administrador | Só o adm |
+| Qualquer coisa no cadastro **do adm** | Só o adm |
 
 ### 2. Permissões por projeto
 

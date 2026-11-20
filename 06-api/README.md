@@ -9,6 +9,9 @@ Campos Experimentais da Embrapa Cenargen (CVGWeb)**.
 
 **Content-Type:** `application/json` em todas as requisições e respostas.
 
+**Edição:** toda rota de edição `PUT` também aceita `PATCH`, com o mesmo
+comportamento.
+
 ---
 
 ## Especificação OpenAPI (Swagger)
@@ -225,7 +228,7 @@ acende o sino de novo.
 - `PATCH /funcionarios/{id}/situacao` com `ativo: false` de quem lidera projetos
   **exige** `novos_lideres: { projeto_id: funcionario_id }` (pessoa ativa, outra);
   sem isso responde 422 com `projetos_liderados`. Vale também para `DELETE /funcionarios/{id}`.
-- `GET /projetos` traz `lider_ativo` (falso só em dado antigo).
+- `GET /projetos` traz `lider_ativo`: falso quando o líder do projeto está com o acesso desativado.
 
 ---
 
@@ -263,9 +266,14 @@ Pessoas ativas para escolher como participantes de um projeto:
 
 ### `GET /funcionarios`
 
-🔒 **Autenticada** · Requer perfil `FUNCIONARIO-C` ou superior
+🔒 **Autenticada** · O administrador vê todos; os demais, só os colegas dos projetos em que participam
 
-Lista funcionários com paginação e busca.
+Lista funcionários com paginação e busca. Quem não é da administração vê só os
+colegas dos projetos em que participa — e, deles, só o necessário para
+reconhecer a pessoa (`id`, `nome`, `email`, `cargo`, `ativo`, `situacao`,
+`projetos`). Matrícula, observações, perfil e datas de acesso e convite vão
+apenas para a administração, para quem tem `funcionario.editar` num projeto da
+pessoa e para a própria pessoa.
 
 **Query params:**
 
@@ -289,7 +297,7 @@ Retorna um funcionário pelo ID com cargo e projetos.
 
 ### `POST /funcionarios`
 
-🔒 **Autenticada** · Requer perfil `FUNCIONARIO-I` ou `funcionario.criar` no projeto
+🔒 **Autenticada** · Administrador, ou `funcionario.criar` (de sistema ou no projeto — aí `projeto_id` é obrigatório e a pessoa entra na equipe)
 
 Cadastra um novo funcionário. O sistema envia automaticamente o e-mail de convite.
 
@@ -308,11 +316,16 @@ Cadastra um novo funcionário. O sistema envia automaticamente o e-mail de convi
 
 ### `PUT /funcionarios/{id}`
 
-🔒 **Autenticada** · Requer perfil `FUNCIONARIO-A` ou `funcionario.editar` no projeto
+🔒 **Autenticada** · Requer admin, ou `funcionario.editar` num projeto em comum com a pessoa
 
-Atualiza dados do funcionário. Campos `ativo` e `senha` têm restrições:
+Atualiza dados do funcionário. Restrições:
+- **cadastro do admin:** só o próprio admin altera (403 para os demais).
+- `email`: só o admin troca o e-mail de alguém (403). Mandar o mesmo e-mail,
+  em qualquer caixa, não conta como troca. Trocar invalida os links de senha
+  já enviados ao endereço antigo.
 - `ativo`: só admin pode alterar.
-- `senha`: só o próprio usuário ou admin.
+- `senha`: só o próprio usuário ou admin. A troca derruba as outras sessões
+  da pessoa (quem trocou a própria senha continua logado).
 - `cargo_id`: dar ou tirar o cargo `Administrador` muda quem é admin e só o
   SU pode fazer; o SU não tira o próprio cargo de Administrador (422).
 
@@ -320,7 +333,7 @@ Atualiza dados do funcionário. Campos `ativo` e `senha` têm restrições:
 
 ### `PATCH /funcionarios/{id}/situacao`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Só o administrador
 
 Ativa ou desativa um funcionário. Desativar revoga todos os tokens de acesso.
 
@@ -334,10 +347,38 @@ Ativa ou desativa um funcionário. Desativar revoga todos os tokens de acesso.
 
 ### `DELETE /funcionarios/{id}`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Só o administrador
 
-Desativa o funcionário (soft delete) e revoga todos os tokens.
+Desativa o acesso — o cadastro, o histórico de reservas e os logs ficam — e
+derruba as sessões abertas. Se a pessoa lidera projetos, exige
+`novos_lideres: { projeto_id: funcionario_id }`, como o `PATCH .../situacao`.
 
+
+---
+
+### `GET /funcionarios/{id}/permissoes`
+
+🔒 **Autenticada** · Só o administrador
+
+Tudo o que a pessoa pode fazer: se é administrador, as permissões de sistema
+(`globais`), o catálogo das permissões de sistema (`catalogo_global`) e, por
+projeto, o papel e as permissões (`projetos[]` com `id`, `codigo`, `titulo`,
+`papel`, `permissoes`). É o que abre o modal de permissões da tela de usuários.
+
+---
+
+### `PUT /funcionarios/{id}/permissoes-globais`
+
+🔒 **Autenticada** · Só o administrador
+
+Grava as permissões de sistema da pessoa — valem em todos os projetos, sem
+torná-la administradora.
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `permissoes` | string[] | Sim (pode ser vazio) | Subconjunto de `reserva.aprovar`, `reserva.cancelar`, `casa.configurar`, `auditoria.ver`, `funcionario.criar` |
+
+Responde `{ message, globais }` e registra a troca nos logs.
 ---
 
 ## 4. Projetos
@@ -397,7 +438,7 @@ projeto, então o mesmo projeto pode usar vasos de várias estufas.
 
 ### `POST /projetos/{id}/aprovar`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Só o administrador
 
 Aceita a proposta: grava `situacao=APROVADO`, `aprovado_por` e `aprovado_em`, e
 concede ao autor, no próprio projeto, `projeto.editar`, `reserva.criar`,
@@ -409,7 +450,7 @@ concede ao autor, no próprio projeto, `projeto.editar`, `reserva.criar`,
 
 ### `POST /projetos/{id}/recusar`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Só o administrador
 
 | Campo | Tipo | Obrigatório | Descrição |
 | --- | --- | --- | --- |
@@ -428,7 +469,26 @@ propor de novo.
 
 ### `DELETE /projetos/{id}`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Só o administrador
+
+---
+
+### Documentos e anotações do projeto
+
+Material da pesquisa guardado dentro do projeto. Ler e incluir: a equipe do
+projeto (líder e participantes) e a administração. Excluir: quem enviou, o
+líder ou a administração.
+
+| Método | Rota | O que faz |
+| --- | --- | --- |
+| `GET` | `/projetos/{projeto}/documentos` | Lista os itens, do mais novo para o mais antigo. Cada um traz `tipo`, `titulo`, `texto`, `autor`, `criado_em`, `arquivo` (`nome`, `mime`, `tamanho`) e `posso_excluir` |
+| `POST` | `/projetos/{projeto}/documentos` | Inclui um item. **multipart/form-data**: `tipo` (`DOCUMENTO`, `PROTOCOLO`, `IMAGEM`, `ANOTACAO`), `titulo` (máx. 150), `texto` (opcional, máx. 20000) e `arquivo` (opcional só em `ANOTACAO`) |
+| `GET` | `/projetos/{projeto}/documentos/{documento}/arquivo` | Baixa o arquivo (`Content-Disposition: attachment`) |
+| `DELETE` | `/projetos/{projeto}/documentos/{documento}` | Exclui o item e o arquivo |
+
+Arquivos: até **10 MB**; PDF, documentos (`doc`, `docx`, `odt`, `txt`, `rtf`),
+planilhas (`xls`, `xlsx`, `ods`, `csv`), apresentações (`ppt`, `pptx`, `odp`) e
+imagens (`png`, `jpg`, `jpeg`, `webp`, `gif`). Quem não é da equipe recebe 403.
 
 ---
 
@@ -467,7 +527,7 @@ Atualiza a função de um membro.
 
 ### `PUT /projetos/{projeto}/equipe/{funcionario}/permissoes`
 
-🔒 **Autenticada** · Requer perfil admin ou SU
+🔒 **Autenticada** · Só o administrador
 
 Define as permissões de CRUD de um colaborador dentro do projeto.
 
@@ -528,11 +588,22 @@ Retorna a capacidade disponível por período.
 | `data_inicio` | date | Início do período |
 | `data_fim` | date | Fim do período |
 
+
+---
+
+### `GET /casas-vegetacao/{id}/historico`
+
+🔒 **Autenticada**
+
+Os projetos que já passaram pela estufa (reservas ativas e pendentes), do mais
+recente para o mais antigo: `projetos[]` com `codigo`, `titulo`,
+`responsavel`, `entrou`, `saiu` e `atual` (se está lá hoje), mais um `resumo`
+com o total de projetos e o primeiro e o último dia.
 ---
 
 ### `POST /casas-vegetacao`
 
-🔒 **Autenticada** · Requer perfil `CASA-I`
+🔒 **Autenticada** · Só o administrador, e só abaixo do limite de 51 espaços (`CVGWEB_LIMITE_ESPACOS`). Com o parque completo, responde 422: o cadastro serve para alterar um dos 51
 
 **Request body:**
 
@@ -543,34 +614,55 @@ Retorna a capacidade disponível por período.
 | `tipo` | string | Não | Tipo do espaço (máx. 60, padrão: "Casa de vegetação") |
 | `localizacao` | string | Não | Localização no campus (máx. 60) |
 | `area_m2` | int | Não | Área em metros quadrados |
-| `capacidade` | int | Não | Número de bancadas (informativo) |
+| `temperatura_min` | number | Não | Temperatura mínima em °C (-10 a 60) |
+| `temperatura_max` | number | Não | Temperatura máxima em °C; não pode ser menor que a mínima |
+| `capacidade` | int | Não | Número de bancadas |
 | `unidade_capacidade` | string | Não | `VASO` ou `BANCADA` |
-| `capacidade_total` | int | Não | Capacidade reservável |
-| `vasos_3cm` | int | Não | Capacidade de vasos de 3cm |
-| `vasos_5cm` | int | Não | Capacidade de vasos de 5cm |
-| `vasos_10cm` | int | Não | Capacidade de vasos de 10cm |
+| `capacidade_total` | int | Não | Capacidade reservável. Ignorada quando `vasos` vem preenchido numa estufa de vasos |
+| `vasos` | array | Não | Vasos por tamanho: `[{"tamanho_cm": 3, "quantidade": 5}, {"tamanho_cm": 20, "quantidade": 2}]` (até 20 tamanhos). A API junta tamanhos repetidos, ordena e grava a soma em `capacidade_total` |
 | `obs` | string | Não | Observações |
-| `status` | string | Não | `ATIVA`, `MANUTENCAO` ou `INATIVA` |
+| `status` | string | Não | `ATIVA`, `RESERVADA`, `OCUPADA`, `MANUTENCAO` ou `INATIVA` |
+| `motivo_situacao` | string | Não | Por que está fora de uso (máx. 255). Descartado quando `status` é `ATIVA` |
 
 ---
 
 ### `PUT /casas-vegetacao/{id}`
 
-🔒 **Autenticada** · Requer perfil `CASA-A`
+🔒 **Autenticada** · Administrador, `casa.configurar` de sistema, ou `casa.configurar` num projeto que tem reserva nesta estufa
 
 ---
 
 ### `PATCH /casas-vegetacao/{id}/situacao`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Mesma regra do `PUT /casas-vegetacao/{id}`
 
-Altera a situação (`ATIVA`, `MANUTENCAO`, `INATIVA`).
+Altera a situação (`ATIVA`, `RESERVADA`, `OCUPADA`, `MANUTENCAO`, `INATIVA`).
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `status` | string | Sim | Nova situação |
+| `motivo` | string | Não | Por que a estufa saiu de uso (máx. 255). Aparece na ficha do mapa, no calendário e na frase de recusa de reserva. Ao voltar para `ATIVA`, é apagado |
+
+### `GET /casas-vegetacao/calendario`
+
+🔒 **Autenticada**
+
+Ocupação de **todas** as estufas no intervalo (`de`, `ate`, até 100 dias),
+igual para qualquer pessoa logada. É a fonte do calendário e também do mapa:
+as cores dos marcadores saem daqui, não da lista de reservas da pessoa — que a
+API filtra por projeto e fazia a mesma estufa aparecer lotada para o
+administrador e livre para o pesquisador.
+
+Cada casa traz `capacidades` (por unidade), `status`, `motivo`,
+`aceita_reserva` e as `reservas` que cruzam o intervalo, cada uma com `inicio`,
+`fim`, `quantidade`, `unidade`, `status`, `projeto` (título),
+`projeto_codigo`, `responsavel`, `finalidade` e `minha`.
 
 ---
 
 ### `DELETE /casas-vegetacao/{id}`
 
-🔒 **Autenticada** · Requer perfil `CASA-E`
+🔒 **Autenticada** · Só o administrador
 
 ---
 
@@ -604,7 +696,7 @@ Retorna detalhes de uma reserva.
 
 ### `POST /reservas`
 
-🔒 **Autenticada** · Requer perfil `RESERVA-I` ou `reserva.criar` no projeto
+🔒 **Autenticada** · `reserva.criar` no projeto informado (projeto aprovado). O administrador pode reservar sem projeto
 
 Cria uma reserva. Valida se a quantidade cabe na capacidade livre do período.
 
@@ -619,7 +711,33 @@ Cria uma reserva. Valida se a quantidade cabe na capacidade livre do período.
 | `data_inicio` | date | Sim | Data de início |
 | `data_fim` | date | Sim | Data de fim (≥ data_inicio) |
 | `finalidade` | string | Sim | Finalidade da reserva (máx. 255) |
-| `obs` | string | Não | Ainda aceito (reservas antigas têm), mas a tela não pede mais: o que se faz é explicado na descrição do projeto |
+| `obs` | string | Não | Observação livre. A tela não pede: o que se faz é explicado na descrição do projeto |
+
+---
+
+### `POST /reservas/lote`
+
+🔒 **Autenticada** · Mesma regra do `POST /reservas`
+
+Pede vasos, bancadas ou ambos em um único envio. Cada unidade é gravada como
+uma reserva própria, mas todas são validadas e salvas na mesma transação; se
+uma delas não couber no período, nenhuma é criada.
+
+**Request body:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `casa_vegetacao_id` | int | Sim | FK para casas_vegetacao |
+| `projeto_id` | int | Condicional | Obrigatório para não-admin |
+| `itens` | array | Sim | De 1 a 2 itens, sem repetir a unidade |
+| `itens[].unidade` | string | Sim | `VASO` ou `BANCADA` |
+| `itens[].quantidade` | int | Sim | Quantidade da unidade (≥ 1) |
+| `data_inicio` | date | Sim | Data de início |
+| `data_fim` | date | Sim | Data de fim (≥ data_inicio) |
+| `finalidade` | string | Sim | Finalidade da reserva (máx. 255) |
+| `obs` | string | Não | Observação opcional |
+
+**Resposta `201`:** `{ reservas: [...], message }`.
 
 ---
 
@@ -633,7 +751,7 @@ Atualiza uma reserva pendente. Revalida capacidade.
 
 ### `POST /reservas/{id}/aprovar`
 
-🔒 **Autenticada** · Requer perfil `RESERVA-A`
+🔒 **Autenticada** · Administrador, ou `reserva.aprovar` (de sistema ou no projeto da reserva)
 
 Aprova uma reserva pendente. Revalida capacidade no momento da aprovação.
 
@@ -713,7 +831,7 @@ Retorna o catálogo completo de permissões disponíveis por projeto.
 
 ### `GET /auditorias`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Administrador, ou `auditoria.ver` (de sistema: tudo; de projeto: só os registros daquele projeto)
 
 Lista registros de auditoria com paginação e filtros.
 
@@ -731,7 +849,7 @@ Lista registros de auditoria com paginação e filtros.
 
 ### `GET /auditorias/filtros`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · Mesma regra do `GET /auditorias`
 
 Retorna os valores distintos de `entidade` e `acao` para montar filtros na UI.
 
@@ -741,7 +859,7 @@ Retorna os valores distintos de `entidade` e `acao` para montar filtros na UI.
 
 ### `GET /painel`
 
-🔒 **Autenticada** · Requer perfil admin
+🔒 **Autenticada** · O administrador vê o banco inteiro; os demais, os números dos seus projetos
 
 Retorna números consolidados do sistema: total de funcionários, projetos, casas, reservas ativas, etc.
 

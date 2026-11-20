@@ -31,8 +31,8 @@ A tabela `projetos` carrega, além do andamento da pesquisa
 | `aprovado_em` | `timestamp`, nulo | Quando foi aceita |
 | `motivo_recusa` | `varchar(255)`, nulo | Por que não foi aceita |
 
-O padrão `APROVADO` cobre os projetos que já existiam: foram criados pelo
-administrador, o único que podia criá-los antes desta mudança.
+O padrão é `APROVADO`: projeto criado pelo administrador já nasce aprovado;
+proposta de pesquisador nasce `PENDENTE`.
 
 Migration: `2026_11_12_000001_add_aprovacao_to_projetos_table.php`.
 
@@ -40,22 +40,20 @@ Migration: `2026_11_12_000001_add_aprovacao_to_projetos_table.php`.
 
 ## 1. Visão geral
 
-O CVGWeb utiliza **MySQL 8** como banco relacional, gerenciado pelo Eloquent ORM
+O CVGWeb utiliza **MySQL 8** (ou MariaDB 10.4+) como banco relacional, gerenciado pelo Eloquent ORM
 do Laravel 12. Toda a estrutura é criada e versionada via migrations.
 
-O arquivo `cvgweb-schema.sql` na raiz do repositório de orquestração contém o
-schema completo gerado a partir das migrations, para consulta e importação
-manual. **Nunca edite este arquivo à mão** — use `scripts/exportar-schema.sh`
-para regerar.
+Para ver o schema inteiro num lugar só, rode as migrations num banco vazio e
+exporte com `mysqldump --no-data`.
 
 ### Números atuais
 
 | Métrica | Valor |
 | --- | --- |
-| Tabelas de domínio | 8 |
-| Tabelas de infraestrutura | 7 |
-| Migrations | 21 |
-| Casas de vegetação pré-cadastradas | 50 |
+| Tabelas de domínio | 12 |
+| Tabelas de infraestrutura | 8 |
+| Migrations | 34 |
+| Casas de vegetação pré-cadastradas | 51 |
 | Cargos pré-cadastrados | 5 |
 | Status de projeto | 5 |
 
@@ -65,7 +63,7 @@ para regerar.
 
 | Parâmetro | Valor |
 | --- | --- |
-| SGBD | MySQL 8.0+ |
+| SGBD | MySQL 8.0+ ou MariaDB 10.4+ (testados: MySQL 8.4, MySQL 8.0, MariaDB 10.4) |
 | Charset | `utf8mb4` |
 | Collation | `utf8mb4_unicode_ci` |
 | Engine | InnoDB |
@@ -82,6 +80,37 @@ DB_DATABASE=embrapa_cvg
 DB_USERNAME=cvgweb
 DB_PASSWORD=cvgweb
 ```
+
+### Fora do Docker (banco instalado na máquina)
+
+O banco funciona fora do Docker. Bancos testados de ponta a ponta: MySQL 8.4
+instalado no Windows (o do Laragon), MySQL 8.0 e MariaDB 10.4 (a versão do
+XAMPP). Em cada um:
+
+| Etapa | MySQL 8.4 (Windows) | MySQL 8.0 | MariaDB 10.4 |
+| :--- | :---: | :---: | :---: |
+| `php artisan migrate --seed` num banco vazio (adm no id 0, primeira pessoa no id 1) | ✅ | ✅ | ✅ |
+| `DemoSeeder` duas vezes seguidas, sem duplicar | ✅ | ✅ | ✅ |
+| Suíte de testes inteira **contra o banco** (`phpunit.mysql.xml`) | ✅ | ✅ | ✅ |
+| API servida pelo PHP do Windows, todas as rotas `GET` respondendo | ✅ | — | — |
+
+MySQL 5.7 e anteriores não são suportados (fora de suporte desde 2023).
+
+**Montar o banco:** `php artisan migrate --seed`, o mesmo caminho do Docker.
+Num banco em uso, `php artisan migrate` aplica só o que falta.
+
+**O que pode pegar quem instala na mão**
+
+| Situação | O que acontece | O que fazer |
+| :--- | :--- | :--- |
+| Banco criado sem charset | Tabelas novas saem em `utf8mb4` de qualquer jeito (o Laravel pede), mas o padrão do banco fica errado | Crie com `CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` |
+| Acentos aparecem como `Conclu�do` no terminal do Windows | Só exibição: o console usa outra codificação. O dado está certo (`HEX(nome)` mostra `C3AD`) | `mysql --default-character-set=utf8mb4 ...` |
+| Super usuário no id 0 | O MySQL trata `0` como "gere o próximo" a menos que `NO_AUTO_VALUE_ON_ZERO` esteja ligado | Nada: o Laravel liga o modo em cada conexão (`config/database.php`). Só não cadastre funcionários por outra ferramenta com `id = 0` |
+| `sql_mode` do servidor diferente | O Laravel define o próprio `sql_mode` (estrito) por conexão; o do servidor não vale para a aplicação | Nada |
+| `lower_case_table_names = 1` (padrão do Windows) | Todas as tabelas já têm nome minúsculo | Nada |
+| Fuso do servidor (`SYSTEM` = Brasília no Windows, UTC no Docker) | Leitura e escrita passam pelo mesmo servidor, então os horários batem. O `mysqldump` grava em UTC, então levar um backup do Docker para o banco instalado (ou o contrário) também funciona | Nada |
+| Usuário `root` sem senha (XAMPP) | Funciona, mas é inseguro | Crie o usuário `cvgweb` com senha, como acima |
+| MySQL da máquina e do Docker ao mesmo tempo | O instalado usa a 3306; o do Docker, a 3307 | Nada; só aponte `DB_PORT` para o certo |
 
 ---
 
@@ -166,15 +195,23 @@ Cargos do quadro de funcionários do Cenargen.
 Usuários do sistema. O campo `password` nulo indica que o usuário foi cadastrado
 mas ainda não definiu a senha via convite.
 
+> **O super usuário tem o id 0.** Ele não conta como usuário: a primeira
+> pessoa cadastrada é a 1, a segunda a 2. Para o MySQL aceitar gravar o 0
+> numa coluna auto_increment, a conexão usa o modo `NO_AUTO_VALUE_ON_ZERO`
+> (`config/database.php`). A migration
+> `super_usuario_no_id_zero` garante o super usuário no id 0 num banco que o
+> tenha em outro id, renumerando os demais e todas as tabelas que apontam
+> para eles.
+
 | Coluna | Tipo | Restrições | Descrição |
 | --- | --- | --- | --- |
-| `id` | bigint unsigned | PK, auto_increment | |
+| `id` | bigint unsigned | PK, auto_increment | 0 = super usuário |
 | `nome` | varchar(150) | NOT NULL | Nome completo |
 | `matricula` | varchar(20) | UNIQUE, nullable | Identificador interno (rótulo na tela) |
-| `email` | varchar(150) | UNIQUE, NOT NULL | E-mail — único identificador de entrada (o `nick` foi removido em `2026_11_12_000002`) |
+| `email` | varchar(150) | UNIQUE, NOT NULL | E-mail — único identificador de entrada |
 | `email_verified_at` | timestamp | nullable | Data de verificação |
 | `tipo` | varchar(20) | NOT NULL, default `FUNCIONARIO` | `SU`, `ADMIN`, `FUNCIONARIO` |
-| `perfil` | varchar(255) | NOT NULL | Tokens de permissão: `/SU/`, `/FUNCIONARIO-I/A/E/`, `/RESERVA-I/A/`, `/CASA-I/A/E/` |
+| `perfil` | varchar(255) | NOT NULL | `/SU/` para o administrador; `/FUNCIONARIO-C/RESERVA-I/` para os demais. Só o `/SU/` é consultado |
 | `password` | varchar(255) | nullable | Hash bcrypt (12 rounds). Nulo = aguardando convite |
 | `convite_enviado_em` | timestamp | nullable | Data do último convite enviado |
 | `senha_definida_em` | timestamp | nullable | Data em que a senha foi definida |
@@ -243,7 +280,9 @@ Equipe de cada projeto (além do responsável). Cada colaborador pode ter permis
 ### 4.6 `casas_vegetacao`
 
 Estufas e espaços experimentais do Cenargen. A capacidade reservável é definida
-por `capacidade_total` + `unidade_capacidade`.
+por `capacidade_total` + `unidade_capacidade`. Numa estufa contada em vasos, a
+lista `vasos` (por tamanho) define a capacidade: a API soma as quantidades e
+grava em `capacidade_total`.
 
 | Coluna | Tipo | Restrições | Descrição |
 | --- | --- | --- | --- |
@@ -253,14 +292,15 @@ por `capacidade_total` + `unidade_capacidade`.
 | `tipo` | varchar(60) | NOT NULL, default `Casa de vegetação` | Tipo do espaço |
 | `localizacao` | varchar(60) | nullable | Setor no campus |
 | `area_m2` | int unsigned | nullable | Área em m² |
-| `capacidade` | smallint unsigned | NOT NULL, default `0` | Nº de bancadas (informativo) |
+| `temperatura_min` | decimal(4,1) | nullable | Temperatura mínima em que a estufa é mantida (°C) |
+| `temperatura_max` | decimal(4,1) | nullable | Temperatura máxima (°C). Igual à mínima = temperatura fixa |
+| `capacidade` | smallint unsigned | NOT NULL, default `0` | Nº de bancadas. Numa estufa de vasos, também se reservam |
 | `unidade_capacidade` | varchar(10) | NOT NULL, default `VASO` | `VASO` ou `BANCADA` |
 | `capacidade_total` | int unsigned | NOT NULL, default `0` | Capacidade reservável |
-| `vasos_3cm` | int unsigned | nullable | |
-| `vasos_5cm` | int unsigned | nullable | |
-| `vasos_10cm` | int unsigned | nullable | |
+| `vasos` | json | nullable | Vasos por tamanho: `[{"tamanho_cm": 3, "quantidade": 5}, ...]`. Em estufa de vasos, a soma é a `capacidade_total` |
 | `obs` | text | nullable | |
-| `status` | varchar(15) | NOT NULL, default `ATIVA` | `ATIVA`, `MANUTENCAO`, `INATIVA` |
+| `status` | varchar(15) | NOT NULL, default `ATIVA` | `ATIVA`, `RESERVADA`, `OCUPADA`, `MANUTENCAO`, `INATIVA` |
+| `motivo_situacao` | varchar(255) | nullable | Por que está fora de uso. Limpo automaticamente quando volta para `ATIVA` |
 | `created_at` | timestamp | nullable | |
 | `updated_at` | timestamp | nullable | |
 
@@ -340,6 +380,38 @@ Trilha de auditoria: quem criou, alterou ou excluiu o quê.
 
 ---
 
+### 4.10 `projeto_documentos`
+
+Documentação do experimento: o que a equipe guarda dentro do projeto. Um item
+pode ser um arquivo (documento, protocolo, imagem), uma anotação só de texto,
+ou os dois.
+
+| Coluna | Tipo | Restrições | Descrição |
+| --- | --- | --- | --- |
+| `id` | bigint unsigned | PK, auto_increment | |
+| `projeto_id` | bigint unsigned | FK → `projetos.id`, ON DELETE CASCADE | |
+| `funcionario_id` | bigint unsigned | FK → `funcionarios.id`, ON DELETE SET NULL | Quem enviou |
+| `autor_nome` | varchar(150) | nullable | Nome de quem enviou (snapshot) |
+| `tipo` | varchar(20) | NOT NULL | `DOCUMENTO`, `PROTOCOLO`, `IMAGEM` ou `ANOTACAO` |
+| `titulo` | varchar(150) | NOT NULL | |
+| `texto` | text | nullable | Anotação ou observação |
+| `arquivo_caminho` | varchar(255) | nullable | Caminho no disco privado (`storage/app/private/projetos/{id}/...`) |
+| `arquivo_nome` | varchar(255) | nullable | Nome original do arquivo |
+| `arquivo_mime` | varchar(120) | nullable | |
+| `arquivo_tamanho` | bigint unsigned | nullable | Em bytes |
+| `created_at` / `updated_at` | timestamp | nullable | |
+
+**Índices:** `(projeto_id, created_at)`.
+
+O arquivo nunca fica em pasta pública: só é entregue pela API, a quem é da
+equipe do projeto. Ao excluir o registro, o arquivo sai do disco junto.
+
+Também fazem parte do domínio `convites_projeto` (convites para entrar na
+equipe) e `notificacoes_lidas` (o que cada pessoa já leu no sino); a estrutura
+exata de todas está nas migrations.
+
+---
+
 ## 5. Tabelas de infraestrutura
 
 Tabelas gerenciadas automaticamente pelo Laravel:
@@ -390,9 +462,35 @@ vasos medidas em campo. Distribuídas pelos setores Norte, Leste, Central e Sul.
 
 | E-mail | Senha | Tipo | Perfil |
 | --- | --- | --- | --- |
-| `admin@cvgweb.local` (`CVGWEB_SU_EMAIL`) | `super123` | SU | `/SU/` |
+| `admin@cvgweb.local` (`CVGWEB_SU_EMAIL`) | `supersu` (`CVGWEB_SU_SENHA`) | SU | `/SU/` |
 
-> **Troque a senha no primeiro acesso.**
+> **Troque a senha no primeiro acesso.** O seeder roda a cada subida do
+> container, mas só **cria** o super usuário quando ele não existe: uma senha
+> trocada pela tela não volta ao padrão num reinício.
+
+### Dados fictícios (`DemoSeeder`) — sob demanda
+
+**Não** roda no `migrate --seed` nem no boot do container. Carrega um cenário
+completo para apresentar ou testar as telas:
+
+```bash
+php artisan db:seed --class=DemoSeeder
+```
+
+| Tabela | O que recebe |
+| --- | --- |
+| `funcionarios` | 25 contas `@exemplo.test` com matrícula `DEMO0001`…, último acesso e cargos variados (nenhuma com cargo Administrador, que é o adm); 2 com `permissoes_globais`; 1 desativada; 2 sem senha (convite pendente e convite que falhou) |
+| `projetos` / `colaboradores_projeto` | 7 projetos (aprovados, pendente, recusado, suspenso, concluído) com equipes, papéis e funções |
+| `casas_vegetacao` | Ficha completa das 51: tipo, setor, área, temperatura, vasos de 5/10/20 cm, situação e motivo |
+| `reservas` | 54: ativas, futuras, históricas, pendentes e canceladas, em vasos e bancadas |
+| `projeto_documentos` | 8 itens, com arquivos de exemplo no disco privado |
+| `convites_projeto` | 5 convites: 2 pendentes, 1 aceito, 1 recusado, 1 cancelado |
+| `convites_acesso` | 2 convites de primeiro acesso (um enviado, um com erro de envio) |
+| `auditorias` | ~50 eventos em 30 dias, com IP da faixa de documentação `203.0.113.x` |
+
+É idempotente (identifica tudo por e-mail, código ou título) e não apaga dados
+reais. Com `APP_ENV=production` ele se recusa a rodar. Contas e senhas: README
+do back-end.
 
 ---
 
@@ -425,6 +523,18 @@ cronológica pelo Laravel. O histórico completo:
 | `add_indices_to_auditorias_table` | Índices de performance |
 | `add_envio_to_convites_acesso_table` | Controle de envio do convite |
 | `alarga_acao_das_auditorias` | Amplia campo ação |
+| `add_aprovacao_to_projetos_table` | Proposta de projeto: situação, aprovador e motivo da recusa |
+| `remove_nick_from_funcionarios_table` | Login só por e-mail |
+| `create_convites_projeto_table` | Convites para a equipe de um projeto |
+| `limpa_tipo_das_casas_vegetacao` | Tipo da estufa em aberto até ser conferido |
+| `create_notificacoes_lidas_table` | Avisos do sino já lidos |
+| `insere_estufa_15_e_renumera` | 51ª estufa |
+| `add_permissoes_globais_to_funcionarios` | Permissões de sistema por pessoa |
+| `acentua_nomes_de_cargos_e_situacoes` | Acentos nos dados de apoio |
+| `reserva_guarda_a_unidade` | Reserva em vasos ou em bancadas |
+| `super_usuario_no_id_zero` | Super usuário no id 0; demais renumerados a partir do 1 |
+| `add_temperatura_vasos_e_motivo_to_casas_vegetacao` | Temperatura, vasos por tamanho (JSON) e motivo de estar fora de uso; remove `vasos_3cm/5cm/10cm` |
+| `create_projeto_documentos_table` | Documentos e anotações do projeto |
 
 ---
 

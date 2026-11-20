@@ -92,34 +92,27 @@ Usuários são criados por administradores **sem senha**. O fluxo é:
 
 ## 3. Autorização
 
-### Camada 1: Perfil do funcionário
+### Camada 1: Administrador e permissões de sistema
 
-O campo `perfil` armazena tokens de permissão no formato `/ESCOPO/`:
+- **Administrador (super usuário):** `tipo = 'SU'` / perfil `/SU/`. No
+  sistema, o **cargo Administrador é o super usuário**: dar ou tirar esse cargo
+  pela tela muda quem é adm, e só o próprio adm faz isso. O adm passa por
+  todas as Policies no `Gate::before`.
+- **Permissões de sistema** (`funcionarios.permissoes_globais`, JSON): valem
+  em todos os projetos sem tornar a pessoa adm. Só o adm concede. Catálogo
+  fechado: `reserva.aprovar`, `reserva.cancelar`, `casa.configurar`,
+  `auditoria.ver`, `funcionario.criar`.
 
-| Perfil | Significado |
-| --- | --- |
-| `/SU/` | Super usuário — acesso total |
-| `/FUNCIONARIO-I/` | Inserir funcionários |
-| `/FUNCIONARIO-A/` | Alterar funcionários |
-| `/FUNCIONARIO-E/` | Excluir funcionários |
-| `/RESERVA-I/` | Inserir reservas |
-| `/RESERVA-A/` | Aprovar/cancelar reservas |
-| `/CASA-I/` | Inserir casas de vegetação |
-| `/CASA-A/` | Alterar casas de vegetação |
-| `/CASA-E/` | Excluir casas de vegetação |
+O campo `perfil` guarda tokens no formato `/ESCOPO/`; o único que as regras
+consultam é o `/SU/`.
 
 ### Camada 2: Permissões por projeto
 
-O campo `permissoes` (JSON) na tabela `colaboradores_projeto` permite
-controle granular por projeto:
+O campo `permissoes` (JSON) na tabela `colaboradores_projeto` guarda a lista
+de chaves concedidas naquele projeto — nem o líder tem CRUD por padrão:
 
 ```json
-{
-  "funcionario.criar": true,
-  "funcionario.editar": false,
-  "reserva.criar": true,
-  "reserva.aprovar": false
-}
+["reserva.criar", "reserva.editar", "auditoria.ver"]
 ```
 
 ### Policies
@@ -128,11 +121,11 @@ Cada modelo principal tem uma Policy registrada no Laravel:
 
 | Policy | Modelo | Verifica |
 | --- | --- | --- |
-| `FuncionarioPolicy` | Funcionario | Perfil `/FUNCIONARIO-*/ ` + tipo `SU`/`ADMIN` |
-| `ProjetoPolicy` | Projeto | Responsável ou colaborador com permissão |
-| `ReservaPolicy` | Reserva | Perfil `/RESERVA-*/` + pertencer ao projeto |
-| `CasaVegetacaoPolicy` | CasaVegetacao | Perfil `/CASA-*/` |
-| `AuditoriaPolicy` | Auditoria | Apenas `SU` e `ADMIN` |
+| `FuncionarioPolicy` | Funcionario | Adm; ou `funcionario.criar` / `funcionario.editar` num projeto em comum. **Ninguém além do adm edita o cadastro do adm**, e só o adm troca o e-mail de alguém |
+| `ProjetoPolicy` | Projeto | Adm; `projeto.editar` / `equipe.*` no projeto; aprovar proposta é só do adm |
+| `ReservaPolicy` | Reserva | `reserva.*` no projeto da reserva (ou de sistema) |
+| `CasaVegetacaoPolicy` | CasaVegetacao | `casa.configurar` de sistema, ou no projeto que tem reserva na estufa; criar e excluir: ninguém (parque fechado) |
+| `AuditoriaPolicy` | Auditoria | Adm ou `auditoria.ver` (de sistema: tudo; de projeto: só aquele projeto). Ninguém altera ou apaga |
 
 ### Proteção nos Models
 
@@ -318,7 +311,7 @@ back-end:
 | `X-Content-Type-Options` | `nosniff` | Impede MIME type sniffing |
 | `X-Frame-Options` | `DENY` | Impede clickjacking via iframe |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Não vaza path em cross-origin |
-| `X-XSS-Protection` | `0` | Desliga filtro legado (criava mais brechas) |
+| `X-XSS-Protection` | `0` | Desliga o filtro de XSS embutido em navegadores, que não é confiável; a proteção vem do escape e da CSP |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Desliga APIs desnecessárias |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Força HTTPS por 1 ano (só quando em HTTPS) |
 
@@ -355,7 +348,7 @@ leia o `localStorage`.
 
 | Chave | Conteúdo | Ciclo de vida |
 | --- | --- | --- |
-| `cvgweb:rascunho:*` | Rascunhos de reserva em andamento | Expiração automática de 24h |
+| `cvgweb:rascunho-reserva:v1` | Rascunhos de reserva em andamento | Expiração automática de 24h |
 
 **Regras:**
 - Rascunhos expiram automaticamente após 24 horas.
@@ -374,15 +367,16 @@ leia o `localStorage`.
 | Armazenamento | Hash SHA-256 (nunca texto claro) |
 | Validade | 48 horas |
 | Uso único | Sim — `usado_em` é marcado |
-| Invalidação | Emitir novo token invalida todos os anteriores não-usados |
+| Invalidação | Emitir novo token invalida todos os anteriores não-usados; **trocar o e-mail** da pessoa também invalida os links já enviados ao endereço antigo |
 
 ### Tokens Sanctum
 
 | Propriedade | Valor |
 | --- | --- |
 | Geração | Laravel Sanctum 4 |
-| Um por vez | Sim — login revoga tokens anteriores |
-| Revogação | Logout, definição de senha, desativação do usuário |
+| Validade | 12 horas (`SANCTUM_EXPIRATION`, em minutos; padrão 720) |
+| Várias sessões | Sim — cada login cria um token (computador e celular ao mesmo tempo); cada um expira sozinho |
+| Revogação | Logout, definição de senha pelo link, **troca de senha pela tela** (as outras sessões da pessoa caem), desativação do usuário |
 | Armazenamento | Tabela `personal_access_tokens` (hash SHA-256) |
 
 ---
@@ -461,7 +455,6 @@ As medidas abaixo são recomendadas para implementação futura:
 | --- | --- | --- |
 | **2FA (autenticação em dois fatores)** | TOTP via app autenticador | Proteção contra roubo de credenciais |
 | **Política de senha** | Mínimo 12 caracteres, verificar HaveIBeenPwned | Senhas fracas |
-| **Expiração de token Sanctum** | TTL de 8 horas nos tokens | Limitar janela de exposição |
 | **Logging centralizado** | Enviar logs para serviço externo (ex: Papertrail) | Monitoramento e alertas |
 | **Scan de dependências** | `composer audit` e `npm audit` em CI | Vulnerabilidades em pacotes |
 
@@ -476,6 +469,57 @@ As medidas abaixo são recomendadas para implementação futura:
 
 ---
 
+## 14.1 Regras que protegem as contas
+
+| Regra | Onde |
+| --- | --- |
+| Só o administrador troca o **e-mail** de acesso de alguém (o e-mail é o login e o destino do "esqueci minha senha") | `FuncionarioController::update` |
+| Ninguém além do administrador altera o cadastro do administrador | `FuncionarioPolicy::update` |
+| Dar ou tirar o cargo Administrador (que é o super usuário) é só do administrador, e ele não tira o próprio | `FuncionarioController` |
+| Trocar a senha pela tela derruba as outras sessões da pessoa; quem trocou a própria senha continua logado | `FuncionarioController::update` |
+| Trocar o e-mail invalida os links de senha já enviados ao endereço antigo | `FuncionarioController::update` |
+| Definir a senha pelo link derruba todas as sessões e invalida os outros links da pessoa | `AcessoController::definirSenha` |
+| O seeder só cria o super usuário quando ele não existe; nunca regrava a senha | `FuncionarioSeeder` |
+| O `DemoSeeder` (contas com senhas conhecidas) se recusa a rodar com `APP_ENV=production` | `DemoSeeder` |
+
+Cobertas por testes em `FuncionarioEmailSegurancaTest`, `SessaoSegurancaTest`,
+`SuperUsuarioIdZeroTest` e `DemoContasTest`.
+
+## 14.2 Uploads e dados expostos
+
+- **Documentos de projeto:** extensões em lista fechada (sem HTML, SVG ou
+  executáveis), 10 MB por arquivo, nome sorteado no disco, disco privado fora
+  da pasta pública, download só pela API, como anexo, com
+  `X-Content-Type-Options: nosniff`, e só para a equipe do projeto.
+- **`GET /funcionarios`:** a resposta é recortada conforme quem pede; um
+  usuário comum não recebe matrícula, observações, perfil nem datas de acesso
+  dos colegas.
+- **Assistente:** recebe o mesmo que o calendário mostra a qualquer usuário
+  (estufa, responsável, projeto, finalidade, período). A chave da Groq fica só
+  no servidor.
+- **`POST /reservas/lote`:** mesma Policy e mesma validação de capacidade da
+  reserva única, numa transação com trava na estufa — o pedido entra inteiro
+  ou não entra.
+
+## 14.3 Riscos conhecidos
+
+- O texto da finalidade e das observações de uma reserva entra no contexto do
+  assistente de todos. Alguém pode escrever ali instruções para a IA. O
+  assistente só responde, não executa ações, então o efeito se limita ao texto
+  da resposta.
+- "Esqueci minha senha" responde a mesma mensagem exista ou não a conta, mas
+  quando a conta existe o e-mail é enviado na hora, e a resposta demora um
+  pouco mais. Para esconder até isso, o envio teria de ir para a fila
+  (`QUEUE_CONNECTION` com um worker).
+- O compose sobe a API com `php artisan serve` e o front com o servidor de
+  desenvolvimento do Vite, em HTTP. Serve para uso local e homologação; em
+  produção, use um servidor web com HTTPS (o token viaja no cabeçalho de cada
+  requisição).
+- O link do convite usa `FRONTEND_URL`. Com `localhost`, só abre na máquina do
+  servidor.
+
+---
+
 ## 15. Checklist de deploy
 
 Antes de publicar o sistema em produção, verificar:
@@ -486,7 +530,8 @@ Antes de publicar o sistema em produção, verificar:
 - [ ] Certificado TLS/SSL configurado no servidor
 - [ ] `FRONTEND_URL` correto no `.env` do backend (CORS)
 - [ ] `VITE_API_URL` correto no `.env` do frontend
-- [ ] Senha do super usuário `SU` trocada (padrão é `super123`)
+- [ ] `DemoSeeder` **não** rodado (com `APP_ENV=production` ele se recusa); se o banco veio de uma demonstração, apague as contas `@exemplo.test` (`php artisan cvgweb:limpar-funcionarios`)
+- [ ] `CVGWEB_SU_SENHA` definida antes do primeiro boot, ou senha do super usuário trocada pela tela logo após (padrão é `supersu`)
 - [ ] `DB_PASSWORD` forte e única
 - [ ] `RESEND_KEY` configurada para o domínio de produção
 - [ ] `GROQ_API_KEY` configurada

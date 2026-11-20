@@ -35,7 +35,7 @@ orquestração clona os outros dois dentro de si:
 ┌─────────────────────────────────────────────────────────────────┐
 │                     API Laravel 12 (:8000)                      │
 │  Middleware → Form Request → Controller → Service → Model       │
-│  Sanctum · Policies · VerificaPerfil · SecurityHeaders          │
+│  Sanctum · Policies · SecurityHeaders · limites de tentativa    │
 └───────┬─────────────────────────┬──────────────────┬────────────┘
         │                         │                  │
         ▼                         ▼                  ▼
@@ -66,7 +66,7 @@ Detalhes de subida, variáveis e volumes: [9. Operação](../09-operacao/README.
 | Banco | MySQL 8 | Padrão da infraestrutura do Cenargen |
 | E-mail | SMTP (Gmail em desenvolvimento) | Convite e recuperação de senha |
 | LLM | Groq, chamada **pelo back-end** | A chave nunca chega ao navegador |
-| Testes | Playwright (E2E) + PHPUnit | Ver [8. Testes](../08-testes/README.md) |
+| Testes | PHPUnit (API) + testes manuais | Ver [8. Testes](../08-testes/README.md) |
 
 ---
 
@@ -78,13 +78,12 @@ Navegador
       └─ CORS + SecurityHeaders
           └─ auth:sanctum                     → 401 se o token não vale
               └─ throttle                     → 429 se estourou o limite
-                  └─ VerificaPerfil           → 403 se o perfil não permite
-                      └─ Form Request         → 422 se o dado é inválido
-                          └─ Controller       → orquestra
-                              └─ Policy       → 403 se não pode naquele registro
-                                  └─ Service  → regra de negócio
-                                      └─ Model (Eloquent) → MySQL
-                                          └─ Auditoria (trait Auditavel)
+                  └─ Form Request             → 422 se o dado é inválido
+                      └─ Controller           → orquestra
+                          └─ Policy           → 403 se não pode naquele registro
+                              └─ Service  → regra de negócio
+                                  └─ Model (Eloquent) → MySQL
+                                      └─ Auditoria (trait Auditavel)
 ```
 
 A resposta sempre volta em JSON. Erros seguem o padrão do Laravel
@@ -107,7 +106,7 @@ requisição. `POST /api/logout` revoga o token atual.
 
 | Camada | Onde | O que controla |
 | :--- | :--- | :--- |
-| Perfil do sistema | middleware `VerificaPerfil` + `Funcionario::temPerfil()` | O que a pessoa pode fazer **no sistema** (`/SU/`, `/FUNCIONARIO-I/A/E/`) |
+| Sistema | `Gate::before` (administrador) + `permissoes_globais` | O que a pessoa pode fazer **no sistema todo** |
 | Permissão por projeto | `ColaboradorProjeto` + Policies | O que ela pode fazer **dentro de cada projeto** |
 
 Detalhamento em [3. Back-end](../03-backend/README.md#autorização-em-duas-camadas)
@@ -144,16 +143,8 @@ cadastrados.
 | Projeto proposto pelo pesquisador também nasce **pendente** | Só o adm criar projeto | Quem não está em projeto nenhum não conseguiria nem começar — e a administração continua decidindo o que entra |
 | Pendente **já segura** a capacidade | Só a ativa ocupar | Senão dois pedidos para o mesmo período passariam os dois |
 | Convite por link no e-mail | OTP a cada login / senha provisória do admin | O admin nunca conhece a senha de ninguém; o link expira sozinho |
-| **Migrations** como fonte da verdade do schema | `cvgweb-schema.sql` mantido à mão | Versionamento, rollback e `migrate` idempotente no boot |
+| **Migrations** como fonte da verdade do schema | Arquivo `.sql` mantido à mão | Versionamento, rollback e `migrate` idempotente no boot |
 | Groq chamada pelo **back-end** | `VITE_GROQ_API_KEY` no front | Tudo que começa com `VITE_` é embutido no JS publicado e fica legível |
 | Auditoria por trait no Model | Log no controller | Nenhuma escrita escapa, nem a feita por comando de console |
 | Três repositórios | Monorepo | Front e back pertencem a organizações diferentes no GitHub |
 
----
-
-## 2.8 De onde o sistema veio
-
-O CVGWeb substitui uma aplicação PHP legada (`pcvgweb`), que usava um formato
-de transporte próprio (`[[TAG]]..[[/TAG]]`, o "MeuXML") e perfis em token. O
-mapa regra-a-regra da migração está em
-[Migração do legado](../03-backend/migracao-do-legado.md).
