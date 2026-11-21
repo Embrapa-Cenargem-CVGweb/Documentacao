@@ -20,7 +20,7 @@ teste manual pela tela.
 
 | Suíte | Onde | O que cobre | Quantos |
 | :--- | :--- | :--- | :--- |
-| **PHPUnit** (API) | `Embrapa-backend/tests/Feature` | Regras da API, de ponta a ponta dentro do back-end: requisição HTTP → validação → permissão → banco | 163 testes em 25 arquivos |
+| **PHPUnit** (API) | `Embrapa-backend/tests/Feature` | Regras da API, de ponta a ponta dentro do back-end: requisição HTTP → validação → permissão → banco | 158 testes em 24 arquivos |
 | **Manual** | esta página, seção 4 | O que depende de tela, e-mail de verdade ou leitor de tela | 10 roteiros |
 
 Princípios:
@@ -55,14 +55,16 @@ CREATE DATABASE cvg_testes CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL PRIVILEGES ON cvg_testes.* TO 'cvgweb'@'localhost';
 ```
 
-Os 163 testes passam no SQLite e no MySQL 8.4; a suíte também passa no MySQL
+Os 158 testes passam no SQLite e no MySQL 8.4; a suíte também passa no MySQL
 8.0 e no MariaDB 10.4 (o do XAMPP). Testes que dependem do banco:
 
 - `SuperUsuarioIdZeroTest` — no MySQL o `AUTO_INCREMENT` não volta quando o
   teste anterior desfaz a transação; o teste confere o número exato só no
   SQLite e, no MySQL, que a primeira pessoa não caiu no id 0.
-- `DemoContasTest` — sete logins seguidos batem no limite de tentativas; o
-  teste zera o contador entre uma conta e outra.
+
+Na branch `apresentacao` há mais 5 testes (`DemoContasTest`): todas as contas
+fictícias entram e veem o que devem, o seeder não duplica nada e se recusa a
+rodar em produção.
 
 ---
 
@@ -78,7 +80,6 @@ Os 163 testes passam no SQLite e no MySQL 8.4; a suíte também passa no MySQL
 | Estufas | `CasaTemperaturaVasos`, `CasaHistorico` |
 | Sino de avisos | `Notificacao`, `SinoFluxos` |
 | Auditoria (logs) | `Auditoria`, `AuditoriaCobertura`, `AuditoriaResumo` |
-| Dados fictícios | `DemoContas` (todas as contas entram e veem o que devem, nada duplica, recusa em produção) |
 
 ---
 

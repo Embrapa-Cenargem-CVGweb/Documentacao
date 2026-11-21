@@ -90,7 +90,6 @@ XAMPP). Em cada um:
 | Etapa | MySQL 8.4 (Windows) | MySQL 8.0 | MariaDB 10.4 |
 | :--- | :---: | :---: | :---: |
 | `php artisan migrate --seed` num banco vazio (adm no id 0, primeira pessoa no id 1) | ✅ | ✅ | ✅ |
-| `DemoSeeder` duas vezes seguidas, sem duplicar | ✅ | ✅ | ✅ |
 | Suíte de testes inteira **contra o banco** (`phpunit.mysql.xml`) | ✅ | ✅ | ✅ |
 | API servida pelo PHP do Windows, todas as rotas `GET` respondendo | ✅ | — | — |
 
@@ -468,10 +467,11 @@ vasos medidas em campo. Distribuídas pelos setores Norte, Leste, Central e Sul.
 > container, mas só **cria** o super usuário quando ele não existe: uma senha
 > trocada pela tela não volta ao padrão num reinício.
 
-### Dados fictícios (`DemoSeeder`) — sob demanda
+### Dados fictícios — só na branch `apresentacao`
 
-**Não** roda no `migrate --seed` nem no boot do container. Carrega um cenário
-completo para apresentar ou testar as telas:
+A `main` não tem dados fictícios. Na branch `apresentacao`, o `DemoSeeder`
+carrega um cenário completo para apresentar as telas (não roda no
+`migrate --seed` nem no boot do container):
 
 ```bash
 php artisan db:seed --class=DemoSeeder

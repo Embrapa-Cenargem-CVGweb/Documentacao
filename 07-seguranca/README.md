@@ -480,10 +480,10 @@ As medidas abaixo são recomendadas para implementação futura:
 | Trocar o e-mail invalida os links de senha já enviados ao endereço antigo | `FuncionarioController::update` |
 | Definir a senha pelo link derruba todas as sessões e invalida os outros links da pessoa | `AcessoController::definirSenha` |
 | O seeder só cria o super usuário quando ele não existe; nunca regrava a senha | `FuncionarioSeeder` |
-| O `DemoSeeder` (contas com senhas conhecidas) se recusa a rodar com `APP_ENV=production` | `DemoSeeder` |
+| Os dados fictícios (contas com senhas conhecidas) só existem na branch `apresentacao`, e o seeder de lá se recusa a rodar com `APP_ENV=production` | branch `apresentacao` |
 
 Cobertas por testes em `FuncionarioEmailSegurancaTest`, `SessaoSegurancaTest`,
-`SuperUsuarioIdZeroTest` e `DemoContasTest`.
+e `SuperUsuarioIdZeroTest`.
 
 ## 14.2 Uploads e dados expostos
 
@@ -530,7 +530,7 @@ Antes de publicar o sistema em produção, verificar:
 - [ ] Certificado TLS/SSL configurado no servidor
 - [ ] `FRONTEND_URL` correto no `.env` do backend (CORS)
 - [ ] `VITE_API_URL` correto no `.env` do frontend
-- [ ] `DemoSeeder` **não** rodado (com `APP_ENV=production` ele se recusa); se o banco veio de uma demonstração, apague as contas `@exemplo.test` (`php artisan cvgweb:limpar-funcionarios`)
+- [ ] Código da `main` (no back-end, `master`), que não tem dados fictícios; se o banco veio de uma demonstração, apague as contas `@exemplo.test` (`php artisan cvgweb:limpar-funcionarios`)
 - [ ] `CVGWEB_SU_SENHA` definida antes do primeiro boot, ou senha do super usuário trocada pela tela logo após (padrão é `supersu`)
 - [ ] `DB_PASSWORD` forte e única
 - [ ] `RESEND_KEY` configurada para o domínio de produção

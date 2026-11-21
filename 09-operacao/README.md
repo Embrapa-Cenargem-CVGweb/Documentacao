@@ -253,15 +253,20 @@ incluindo os bancos testados fora do Docker e o que muda neles.
 
 ### Dados fictícios
 
-Para apresentar o sistema "cheio" (25 contas fictícias, 7 projetos, 54 reservas,
-documentos, convites e 30 dias de logs):
+Os dados fictícios (contas de exemplo, projetos, reservas, convites e 30 dias
+de logs) ficam **só na branch `apresentacao`** do back-end e do front-end. A
+`main` (no back-end, `master`) começa com o banco limpo: cargos, status, as 51
+estufas e o super usuário. Para apresentar:
 
 ```bash
+git -C Embrapa-backend checkout apresentacao
+git -C Embrapa-frontend checkout apresentacao
+docker compose up -d --build
 docker compose exec backend php artisan db:seed --class=DemoSeeder
 ```
 
-Não roda sozinho no boot e se recusa com `APP_ENV=production`. Contas e
-senhas no README do back-end.
+As contas e o que cada uma demonstra estão no README do back-end, na branch
+`apresentacao`. Com `APP_ENV=production` o seeder se recusa a rodar.
 
 ---
 
